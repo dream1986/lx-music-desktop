@@ -1,10 +1,13 @@
 const { log } = require('../../common/utils')
 const { autoUpdater } = require('electron-updater')
-const { mainOn } = require('../../common/icp')
+const { mainOn, mainSend, NAMES: { mainWindow: ipcMainWindowNames } } = require('../../common/ipc')
 
 autoUpdater.logger = log
 // autoUpdater.autoDownload = false
 autoUpdater.logger.transports.file.level = 'info'
+
+let isFirstCheckedUpdate = true
+
 log.info('App starting...')
 
 
@@ -21,7 +24,7 @@ log.info('App starting...')
 
 function sendStatusToWindow(text) {
   log.info(text)
-  // global.mainWindow.webContents.send('message', text)
+  // ipcMain.send('message', text)
 }
 
 
@@ -58,50 +61,60 @@ function sendStatusToWindow(text) {
 
 let waitEvent = []
 const handleSendEvent = action => {
-  if (global.mainWindow) {
+  if (global.modules.mainWindow) {
     setTimeout(() => { // 延迟发送事件，过早发送可能渲染进程还没启动完成
-      global.mainWindow.webContents.send(action.type, action.info)
+      if (!global.modules.mainWindow) return
+      mainSend(global.modules.mainWindow, action.type, action.info)
     }, 2000)
   } else {
     waitEvent.push(action)
   }
 }
 
-module.exports = isFirstCheckedUpdate => {
+module.exports = () => {
   if (!isFirstCheckedUpdate) {
     if (waitEvent.length) {
       waitEvent.forEach((event, index) => {
         setTimeout(() => { // 延迟发送事件，过早发送可能渲染进程还没启动完成
-          global.mainWindow.webContents.send(event.type, event.info)
+          if (!global.modules.mainWindow) return
+          mainSend(global.modules.mainWindow, event.type, event.info)
         }, 2000 * (index + 1))
       })
       waitEvent = []
     }
     return
   }
+  isFirstCheckedUpdate = false
+
   autoUpdater.on('checking-for-update', () => {
     sendStatusToWindow('Checking for update...')
   })
   autoUpdater.on('update-available', info => {
     sendStatusToWindow('Update available.')
-    handleSendEvent({ type: 'update-available', info })
+    handleSendEvent({ type: ipcMainWindowNames.update_available, info })
   })
   autoUpdater.on('update-not-available', info => {
     sendStatusToWindow('Update not available.')
-    handleSendEvent({ type: 'update-not-available' })
+    handleSendEvent({ type: ipcMainWindowNames.update_not_available, info })
   })
-  autoUpdater.on('error', () => {
+  autoUpdater.on('error', err => {
     sendStatusToWindow('Error in auto-updater.')
-    handleSendEvent({ type: 'update-error' })
+    handleSendEvent({ type: ipcMainWindowNames.update_error, info: err.message })
   })
   autoUpdater.on('download-progress', progressObj => {
-    sendStatusToWindow('Download progress...')
+    let log_message = 'Download speed: ' + progressObj.bytesPerSecond
+    log_message = log_message + ' - Downloaded ' + progressObj.percent + '%'
+    log_message = log_message + ' (' + progressObj.transferred + '/' + progressObj.total + ')'
+    sendStatusToWindow(log_message)
+    handleSendEvent({ type: ipcMainWindowNames.update_progress, info: progressObj })
   })
   autoUpdater.on('update-downloaded', info => {
     sendStatusToWindow('Update downloaded.')
-    handleSendEvent({ type: 'update-downloaded' })
+    handleSendEvent({ type: ipcMainWindowNames.update_downloaded, info })
   })
-  mainOn('quit-update', () => {
+  mainOn(ipcMainWindowNames.quit_update, () => {
+    global.isQuitting = true
+
     setTimeout(() => {
       autoUpdater.quitAndInstall(true, true)
     }, 1000)

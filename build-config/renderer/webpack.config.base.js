@@ -1,9 +1,12 @@
 const path = require('path')
 const VueLoaderPlugin = require('vue-loader/lib/plugin')
 const HTMLPlugin = require('html-webpack-plugin')
+const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 
 const vueLoaderConfig = require('../vue-loader.config')
+const { mergeCSSLoader } = require('../utils')
 
+const isDev = process.env.NODE_ENV === 'development'
 
 module.exports = {
   target: 'electron-renderer',
@@ -18,8 +21,11 @@ module.exports = {
   },
   resolve: {
     alias: {
-      '@': path.join(__dirname, '../../src/renderer'),
-      common: path.join(__dirname, '../../src/common'),
+      '@main': path.join(__dirname, '../../src/main'),
+      '@renderer': path.join(__dirname, '../../src/renderer'),
+      '@lyric': path.join(__dirname, '../../src/renderer-lyric'),
+      '@static': path.join(__dirname, '../../src/static'),
+      '@common': path.join(__dirname, '../../src/common'),
     },
     extensions: ['*', '.js', '.json', '.vue', '.node'],
   },
@@ -45,6 +51,28 @@ module.exports = {
         test: /\.js$/,
         loader: 'babel-loader',
         exclude: /node_modules/,
+      },
+      {
+        test: /\.css$/,
+        oneOf: mergeCSSLoader(),
+      },
+      {
+        test: /\.less$/,
+        oneOf: mergeCSSLoader({
+          loader: 'less-loader',
+          options: {
+            sourceMap: true,
+          },
+        }),
+      },
+      {
+        test: /\.styl(:?us)?$/,
+        oneOf: mergeCSSLoader({
+          loader: 'stylus-loader',
+          options: {
+            sourceMap: true,
+          },
+        }),
       },
       {
         test: /\.pug$/,
@@ -92,11 +120,17 @@ module.exports = {
   plugins: [
     new HTMLPlugin({
       filename: 'index.html',
-      template: path.join(__dirname, '../../src/index.pug'),
+      template: path.join(__dirname, '../../src/renderer/index.pug'),
       isProd: process.env.NODE_ENV == 'production',
       browser: process.browser,
       __dirname,
     }),
     new VueLoaderPlugin(),
+    new MiniCssExtractPlugin({
+      // Options similar to the same options in webpackOptions.output
+      // both options are optional
+      filename: isDev ? '[name].css' : '[name].[contenthash:8].css',
+      chunkFilename: isDev ? '[id].css' : '[id].[contenthash:8].css',
+    }),
   ],
 }

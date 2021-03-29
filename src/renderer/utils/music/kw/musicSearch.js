@@ -16,14 +16,14 @@ export default {
   page: 0,
   allPage: 1,
   // cancelFn: null,
-  musicSearch(str, page) {
+  musicSearch(str, page, limit) {
     if (this._musicSearchRequestObj != null) {
       cancelHttp(this._musicSearchRequestObj)
       this._musicSearchPromiseCancelFn(new Error('取消http请求'))
     }
     return new Promise((resolve, reject) => {
       this._musicSearchPromiseCancelFn = reject
-      this._musicSearchRequestObj = httpGet(`http://search.kuwo.cn/r.s?client=kt&all=${encodeURIComponent(str)}&pn=${page - 1}&rn=${this.limit}&uid=794762570&ver=kwplayer_ar_9.2.2.1&vipver=1&show_copyright_off=1&newver=1&ft=music&cluster=0&strategy=2012&encoding=utf8&rformat=json&vermerge=1&mobi=1&issubtitle=1`, (err, resp, body) => {
+      this._musicSearchRequestObj = httpGet(`http://search.kuwo.cn/r.s?client=kt&all=${encodeURIComponent(str)}&pn=${page - 1}&rn=${limit}&uid=794762570&ver=kwplayer_ar_9.2.2.1&vipver=1&show_copyright_off=1&newver=1&ft=music&cluster=0&strategy=2012&encoding=utf8&rformat=json&vermerge=1&mobi=1&issubtitle=1`, (err, resp, body) => {
         this._musicSearchRequestObj = null
         this._musicSearchPromiseCancelFn = null
         if (err) {
@@ -42,6 +42,7 @@ export default {
   // },
   handleResult(rawData) {
     const result = []
+    if (!rawData) return result
     for (let i = 0; i < rawData.length; i++) {
       const info = rawData[i]
       let songId = info.MUSICRID.replace('MUSIC_', '')
@@ -112,8 +113,9 @@ export default {
         albumId: decodeName(info.ALBUMID || ''),
         interval: Number.isNaN(interval) ? 0 : formatPlayTime(interval),
         albumName: info.ALBUM ? decodeName(info.ALBUM) : '',
-        lyric: null,
+        lrc: null,
         img: null,
+        otherSource: null,
         types,
         _types,
         typeUrl: {},
@@ -121,24 +123,26 @@ export default {
     }
     return result
   },
-  search(str, page = 1, { limit } = {}) {
-    if (limit != null) this.limit = limit
+  search(str, page = 1, { limit } = {}, retryNum = 0) {
+    if (retryNum > 2) return Promise.reject(new Error('try max num'))
+    if (limit == null) limit = this.limit
     // http://newlyric.kuwo.cn/newlyric.lrc?62355680
-    return this.musicSearch(str, page).then(result => {
-      if (!result || (result.TOTAL !== '0' && result.SHOW === '0')) return this.search(str, page, { limit })
+    return this.musicSearch(str, page, limit).then(result => {
+      // console.log(result)
+      if (!result || (result.TOTAL !== '0' && result.SHOW === '0')) return this.search(str, page, { limit }, ++retryNum)
       let list = this.handleResult(result.abslist)
 
       if (list == null) return this.search(str, page, { limit })
 
       this.total = parseInt(result.TOTAL)
       this.page = page
-      this.allPage = Math.ceil(this.total / this.limit)
+      this.allPage = Math.ceil(this.total / limit)
 
       return Promise.resolve({
         list,
         allPage: this.allPage,
         total: this.total,
-        limit: this.limit,
+        limit,
         source: 'kw',
       })
     })

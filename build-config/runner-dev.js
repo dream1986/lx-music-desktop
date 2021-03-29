@@ -7,12 +7,12 @@ const path = require('path')
 const { spawn } = require('child_process')
 const webpack = require('webpack')
 const WebpackDevServer = require('webpack-dev-server')
+const HtmlWebpackPlugin = require('html-webpack-plugin')
 const webpackHotMiddleware = require('webpack-hot-middleware')
 
 const mainConfig = require('./main/webpack.config.dev')
 const rendererConfig = require('./renderer/webpack.config.dev')
-
-const { logStats } = require('./utils')
+const rendererLyricConfig = require('./renderer-lyric/webpack.config.dev')
 
 let electronProcess = null
 let manualRestart = false
@@ -31,7 +31,7 @@ function startRenderer() {
 
     compiler.hooks.compilation.tap('compilation', compilation => {
       // console.log(Object.keys(compilation.hooks))
-      compilation.hooks.htmlWebpackPluginAfterEmit.tapAsync('html-webpack-plugin-after-emit', (data, cb) => {
+      HtmlWebpackPlugin.getHooks(compilation).beforeEmit.tapAsync('html-webpack-plugin-after-emit', (data, cb) => {
         hotMiddleware.publish({ action: 'reload' })
         cb()
       })
@@ -59,10 +59,57 @@ function startRenderer() {
             resolve()
           })
         },
-      }
+      },
     )
 
     server.listen(9080)
+  })
+}
+
+function startRendererLyric() {
+  return new Promise((resolve, reject) => {
+    // rendererConfig.entry.renderer = [path.join(__dirname, 'dev-client')].concat(rendererConfig.entry.renderer)
+    // rendererConfig.mode = 'development'
+    const compiler = webpack(rendererLyricConfig)
+    hotMiddleware = webpackHotMiddleware(compiler, {
+      log: false,
+      heartbeat: 2500,
+    })
+
+    compiler.hooks.compilation.tap('compilation', compilation => {
+      // console.log(Object.keys(compilation.hooks))
+      HtmlWebpackPlugin.getHooks(compilation).beforeEmit.tapAsync('html-webpack-plugin-after-emit', (data, cb) => {
+        hotMiddleware.publish({ action: 'reload' })
+        cb()
+      })
+    })
+
+    compiler.hooks.done.tap('done', stats => {
+      // logStats('Renderer', 'Compile done')
+      // logStats('Renderer', stats)
+    })
+
+    const server = new WebpackDevServer(
+      compiler,
+      {
+        contentBase: path.join(__dirname, '../'),
+        quiet: true,
+        hot: true,
+        historyApiFallback: true,
+        clientLogLevel: 'warning',
+        overlay: {
+          errors: true,
+        },
+        before(app, ctx) {
+          app.use(hotMiddleware)
+          ctx.middleware.waitUntilValid(() => {
+            resolve()
+          })
+        },
+      },
+    )
+
+    server.listen(9081)
   })
 }
 
@@ -73,7 +120,6 @@ function startMain() {
     const compiler = webpack(mainConfig)
 
     compiler.hooks.watchRun.tapAsync('watch-run', (compilation, done) => {
-      logStats('Main', chalk.white.bold('compiling...'))
       hotMiddleware.publish({ action: 'compiling' })
       done()
     })
@@ -133,38 +179,33 @@ function startElectron() {
 function electronLog(data, color) {
   let log = data.toString()
   if (/[0-9A-z]+/.test(log)) {
+    // 抑制 user api 窗口使用 data url 加载页面时 vue扩展 的报错日志刷屏的问题
+    if (color == 'red' && typeof log === 'string' && log.includes('"Extension server error: Operation failed: Permission denied", source: devtools://devtools/bundled/extensions/extensions.js')) return
+
     console.log(chalk[color](log))
   }
 }
 
-function greeting() {
-/*   const cols = process.stdout.columns
-  let text = ''
-
-  if (cols > 104) text = 'electron-vue'
-  else if (cols > 76) text = 'electron-|vue'
-  else text = false
-
-  if (text) {
-    say(text, {
-      colors: ['yellow'],
-      font: 'simple3d',
-      space: false,
-    })
-  } else console.log(chalk.yellow.bold('\n  electron-vue')) */
-  console.log(chalk.blue('getting ready...') + '\n')
-}
-
 function init() {
-  greeting()
+  const Spinnies = require('spinnies')
+  const spinners = new Spinnies({ color: 'blue' })
+  spinners.add('main', { text: 'main compiling' })
+  spinners.add('renderer', { text: 'renderer compiling' })
+  spinners.add('renderer-lyric', { text: 'renderer-lyric compiling' })
+  function handleSuccess(name) {
+    spinners.succeed(name, { text: name + ' compile success!' })
+  }
+  function handleFail(name) {
+    spinners.fail(name, { text: name + ' compile fail!' })
+  }
 
-  Promise.all([startRenderer(), startMain()])
-    .then(() => {
-      startElectron()
-    })
-    .catch(err => {
-      console.error(err)
-    })
+  Promise.all([
+    startRenderer().then(() => handleSuccess('renderer')).catch(() => handleFail('renderer')),
+    startRendererLyric().then(() => handleSuccess('renderer-lyric')).catch(() => handleFail('renderer-lyric')),
+    startMain().then(() => handleSuccess('main')).catch(() => handleFail('main')),
+  ]).then(startElectron).catch(err => {
+    console.error(err)
+  })
 }
 
 init()

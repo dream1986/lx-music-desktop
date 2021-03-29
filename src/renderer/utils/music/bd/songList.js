@@ -7,8 +7,8 @@ export default {
   _requestObj_list: null,
   _requestObj_listRecommend: null,
   _requestObj_listDetail: null,
-  limit_list: 20,
-  limit_song: 1000,
+  limit_list: 30,
+  limit_song: 10000,
   successCode: 22000,
   sortList: [
     {
@@ -20,6 +20,10 @@ export default {
       id: '0',
     },
   ],
+  regExps: {
+    // http://music.taihe.com/songlist/566347741
+    listDetailLink: /^.+\/songlist\/(\d+)(?:\?.*|&.*$|#.*$|$)/,
+  },
   aesPassEncod(jsonData) {
     let timestamp = Math.floor(Date.now() / 1000)
     let privateKey = toMD5('baidu_taihe_music_secret_key' + timestamp).substr(8, 16)
@@ -145,9 +149,7 @@ export default {
   getList(sortId, tagId, page, tryNum = 0) {
     if (this._requestObj_list) this._requestObj_list.cancelHttp()
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
-    this._requestObj_list = httpFetch(
-      this.getListUrl(sortId, tagId, page)
-    )
+    this._requestObj_list = httpFetch(this.getListUrl(sortId, tagId, page))
     return this._requestObj_list.promise.then(({ body }) => {
       if (body.error_code !== this.successCode) return this.getList(sortId, tagId, page, ++tryNum)
       return {
@@ -186,10 +188,11 @@ export default {
 
   // 获取歌曲列表内的音乐
   getListDetail(id, page, tryNum = 0) {
-    if (this._requestObj_listDetail) {
-      this._requestObj_listDetail.cancelHttp()
-    }
+    if (this._requestObj_listDetail) this._requestObj_listDetail.cancelHttp()
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
+
+    if ((/[?&:/]/.test(id))) id = id.replace(this.regExps.listDetailLink, '$1')
+
     this._requestObj_listDetail = httpFetch(this.getListDetailUrl(id, page))
     return this._requestObj_listDetail.promise.then(({ body }) => {
       if (body.error_code !== this.successCode) return this.getListDetail(id, page, ++tryNum)

@@ -1,9 +1,8 @@
 import fs from 'fs'
-import { shell, remote, clipboard } from 'electron'
 import path from 'path'
-import os from 'os'
+import { shell, clipboard } from 'electron'
 import crypto from 'crypto'
-import { rendererSend } from '../../common/icp'
+import { rendererSend, rendererInvoke, NAMES } from '../../common/ipc'
 
 /**
  * 获取两个数之间的随机整数，大于等于min，小于max
@@ -19,6 +18,39 @@ export const sizeFormate = size => {
   let units = ['B', 'KB', 'MB', 'GB', 'TB']
   let number = Math.floor(Math.log(size) / Math.log(1024))
   return `${(size / Math.pow(1024, Math.floor(number))).toFixed(2)} ${units[number]}`
+}
+
+/**
+  * 日期格式化
+  * @param {*} date 时间
+  * @param {String} format 时间格式，默认YYYY-MM-DD hh:mm:ss
+  */
+export const dateFormat = (date = new Date(), format = 'YYYY-MM-DD hh:mm:ss') => {
+  if (typeof date != 'object') date = new Date(date)
+  const munFix = (n) => n < 10 ? ('0' + n) : n
+  return format
+    .replace('YYYY', date.getFullYear())
+    .replace('MM', munFix(date.getMonth() + 1))
+    .replace('DD', munFix(date.getDate()))
+    .replace('hh', munFix(date.getHours()))
+    .replace('mm', munFix(date.getMinutes()))
+    .replace('ss', munFix(date.getSeconds()))
+}
+
+/**
+ * 时间格式化
+ */
+export const dateFormat2 = time => {
+  let differ = parseInt((Date.now() - time) / 1000)
+  if (differ < 60) {
+    return window.i18n.t('base.date_format_second', { num: differ })
+  } else if (differ < 3600) {
+    return window.i18n.t('base.date_format_minute', { num: parseInt(differ / 60) })
+  } else if (differ < 86400) {
+    return window.i18n.t('base.date_format_hour', { num: parseInt(differ / 3600) })
+  } else {
+    return dateFormat(time)
+  }
 }
 
 export const formatPlayTime = time => {
@@ -40,24 +72,39 @@ export const b64DecodeUnicode = str => {
   }).join(''))
 }
 
-export const decodeName = str => str.replace(/&apos;/g, '\'')
+const encodeNames = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&apos;': "'",
+  '&#039;': "'",
+}
+export const decodeName = (str = '') => str.replace(/(?:&amp;|&lt;|&gt;|&quot;|&apos;|&#039;)/gm, s => encodeNames[s])
 
-export const scrollTo = (element, to, duration = 300, fn = function() {}) => {
-  if (!element) return
+const easeInOutQuad = (t, b, c, d) => {
+  t /= d / 2
+  if (t < 1) return (c / 2) * t * t + b
+  t--
+  return (-c / 2) * (t * (t - 2) - 1) + b
+}
+const handleScroll = (element, to, duration = 300, fn = () => {}) => {
+  if (!element) return fn()
   const start = element.scrollTop || element.scrollY || 0
+  let cancel = false
+  if (to > start) {
+    let maxScrollTop = element.scrollHeight - element.clientHeight
+    if (to > maxScrollTop) to = maxScrollTop
+  } else if (to < start) {
+    if (to < 0) to = 0
+  } else return fn()
   const change = to - start
   const increment = 10
-  if (!change) {
-    fn()
-    return
-  }
-  let currentTime = 0; let val
-  const easeInOutQuad = (t, b, c, d) => {
-    t /= d / 2
-    if (t < 1) return (c / 2) * t * t + b
-    t--
-    return (-c / 2) * (t * (t - 2) - 1) + b
-  }
+  if (!change) return fn()
+
+  let currentTime = 0
+  let val
+
   const animateScroll = () => {
     currentTime += increment
     val = parseInt(easeInOutQuad(currentTime, start, change, duration))
@@ -67,32 +114,65 @@ export const scrollTo = (element, to, duration = 300, fn = function() {}) => {
       element.scrollTop = val
     }
     if (currentTime < duration) {
+      if (cancel) return fn()
       setTimeout(animateScroll, increment)
     } else {
       fn()
     }
   }
   animateScroll()
+  return () => {
+    cancel = true
+  }
+}
+/**
+ * 设置滚动条位置
+ * @param {*} element 要设置滚动的容器 dom
+ * @param {*} to 滚动的目标位置
+ * @param {*} duration 滚动完成时间 ms
+ * @param {*} fn 滚动完成后的回调
+ * @param {*} delay 延迟执行时间
+ */
+export const scrollTo = (element, to, duration = 300, fn = () => {}, delay = 0) => {
+  let cancelFn
+  let timeout
+  if (delay) {
+    let scrollCancelFn
+    cancelFn = () => {
+      timeout == null ? scrollCancelFn && scrollCancelFn() : clearTimeout(timeout)
+    }
+    timeout = setTimeout(() => {
+      timeout = null
+      scrollCancelFn = handleScroll(element, to, duration, fn, delay)
+    }, delay)
+  } else {
+    cancelFn = handleScroll(element, to, duration, fn, delay)
+  }
+  return cancelFn
 }
 
 /**
  * 检查路径是否存在
- * @param {*} path
+ * @param {*} path 路径
  */
-export const checkPath = path => fs.existsSync(path)
-
-
-/**
- * 在资源管理器中打开目录
- * @param {*} 选项
- */
-export const openSelectDir = options => remote.dialog.showOpenDialog(remote.getCurrentWindow(), options)
+export const checkPath = (path) => new Promise(resolve => {
+  fs.access(path, fs.constants.F_OK, err => {
+    if (err) return resolve(false)
+    resolve(true)
+  })
+})
 
 /**
- * 在资源管理器中打开目录
+ * 选择路径
  * @param {*} 选项
  */
-export const openSaveDir = options => remote.dialog.showSaveDialog(remote.getCurrentWindow(), options)
+export const selectDir = options => rendererInvoke(NAMES.mainWindow.select_dir, options)
+
+/**
+ * 打开保存对话框
+ * @param {*} 选项
+ */
+export const openSaveDir = options => rendererInvoke(NAMES.mainWindow.show_save_dialog, options)
 
 /**
  * 在资源管理器中打开目录
@@ -102,47 +182,44 @@ export const openDirInExplorer = dir => {
   shell.showItemInFolder(dir)
 }
 
-export const checkVersion = (currentVer, targetVer) => {
-  // console.log(currentVer)
-  // console.log(targetVer)
-  currentVer = currentVer.split('.')
-  targetVer = targetVer.split('.')
-  let maxLen = Math.max(currentVer.length, targetVer.length)
-  if (currentVer.length < maxLen) {
-    for (let index = 0, len = maxLen - currentVer.length; index < len; index++) {
-      currentVer.push(0)
-    }
+// https://stackoverflow.com/a/53387532
+export const compareVer = (currentVer, targetVer) => {
+  // treat non-numerical characters as lower version
+  // replacing them with a negative number based on charcode of each character
+  const fix = s => `.${s.toLowerCase().charCodeAt(0) - 2147483647}.`
+
+  currentVer = ('' + currentVer).replace(/[^0-9.]/g, fix).split('.')
+  targetVer = ('' + targetVer).replace(/[^0-9.]/g, fix).split('.')
+  let c = Math.max(currentVer.length, targetVer.length)
+  for (let i = 0; i < c; i++) {
+    // convert to integer the most efficient way
+    currentVer[i] = ~~currentVer[i]
+    targetVer[i] = ~~targetVer[i]
+    if (currentVer[i] > targetVer[i]) return 1
+    else if (currentVer[i] < targetVer[i]) return -1
   }
-  if (targetVer.length < maxLen) {
-    for (let index = 0, len = maxLen - targetVer.length; index < len; index++) {
-      targetVer.push(0)
-    }
-  }
-  for (let index = 0; index < currentVer.length; index++) {
-    if (parseInt(currentVer[index]) < parseInt(targetVer[index])) return true
-    if (parseInt(currentVer[index]) > parseInt(targetVer[index])) return false
-  }
-  return false
+  return 0
 }
 
 export const isObject = item => item && typeof item === 'object' && !Array.isArray(item)
 
 /**
  * 对象深度合并
- * 注意：循环引用的对象会出现死循环
  * @param  {} target 要合并源对象
  * @param  {} source 要合并目标对象
  */
-export const objectDeepMerge = (target, source) => {
+export const objectDeepMerge = (target, source, mergedObj) => {
+  if (!mergedObj) {
+    mergedObj = new Set()
+    mergedObj.add(target)
+  }
   let base = {}
   Object.keys(source).forEach(item => {
-    if (Array.isArray(source[item])) {
-      let arr = Array.isArray(target[item]) ? target[item] : []
-      target[item] = arr.concat(source[item])
-      return
-    } else if (isObject(source[item])) {
+    if (isObject(source[item])) {
+      if (mergedObj.has(source[item])) return
       if (!isObject(target[item])) target[item] = {}
-      objectDeepMerge(target[item], source[item])
+      mergedObj.add(source[item])
+      objectDeepMerge(target[item], source[item], mergedObj)
       return
     }
     base[item] = source[item]
@@ -151,98 +228,11 @@ export const objectDeepMerge = (target, source) => {
 }
 
 /**
- * 判断是否父子元素
- * @param {*} parent
- * @param {*} children
- */
-export const isChildren = (parent, children) => {
-  return children.parentNode ? children.parentNode === parent ? true : isChildren(parent, children.parentNode) : false
-}
-
-/**
- * 升级设置
- * @param {*} setting
- */
-export const updateSetting = setting => {
-  const defaultVersion = '1.0.12'
-  const defaultSetting = {
-    version: defaultVersion,
-    player: {
-      togglePlayMethod: 'listLoop',
-      highQuality: false,
-      isShowTaskProgess: true,
-      volume: 1,
-    },
-    list: {
-      isShowAlbumName: true,
-      isShowSource: false,
-      scroll: {
-        enable: true,
-        locations: {},
-      },
-    },
-    download: {
-      savePath: path.join(os.homedir(), 'Desktop'),
-      fileName: '歌名 - 歌手',
-      maxDownloadNum: 3,
-      isDownloadLrc: false,
-      isEmbedPic: true,
-    },
-    leaderboard: {
-      source: 'kw',
-      tabId: 'kwbiaosb',
-    },
-    songList: {
-      source: 'kg',
-      sortId: '5',
-      tagInfo: {
-        name: '默认',
-        id: null,
-      },
-    },
-    odc: {
-      isAutoClearSearchInput: false,
-    },
-    search: {
-      searchSource: 'kw',
-      tempSearchSource: 'kw',
-    },
-    network: {
-      proxy: {
-        enable: false,
-        host: '',
-        port: '',
-        username: '',
-        password: '',
-      },
-    },
-    themeId: 0,
-    sourceId: 'kw',
-    apiSource: 'test',
-    randomAnimate: true,
-    ignoreVersion: null,
-  }
-  const overwriteSetting = {
-    version: defaultVersion,
-  }
-
-
-  if (!setting) {
-    setting = defaultSetting
-  } else if (checkVersion(setting.version, defaultSetting.version)) {
-    objectDeepMerge(defaultSetting, setting)
-    objectDeepMerge(defaultSetting, overwriteSetting)
-    setting = defaultSetting
-  }
-  if (setting.apiSource != 'temp') setting.apiSource = 'test' // 强制设置回 test 接口源
-  return setting
-}
-
-/**
  * 在浏览器打开URL
  * @param {*} url
  */
 export const openUrl = url => {
+  if (!/^https?:\/\//.test(url)) return
   shell.openExternal(url)
 }
 
@@ -250,8 +240,8 @@ export const openUrl = url => {
  * 设置标题
  */
 let dom_title = document.getElementsByTagName('title')[0]
-export const setTitle = title => {
-  dom_title.innerText = title || '洛雪音乐助手'
+export const setTitle = (title = '洛雪音乐助手') => {
+  dom_title.innerText = title
 }
 
 
@@ -268,12 +258,18 @@ export const toMD5 = str => crypto.createHash('md5').update(str).digest('hex')
 export const clipboardWriteText = str => clipboard.writeText(str)
 
 /**
+ * 从剪贴板读取文本
+ * @param {*} str
+ */
+export const clipboardReadText = str => clipboard.readText()
+
+/**
  * 设置音频 meta 信息
  * @param {*} filePath
  * @param {*} meta
  */
 export const setMeta = (filePath, meta) => {
-  rendererSend('setMusicMeta', { filePath, meta })
+  rendererSend(NAMES.mainWindow.set_music_meta, { filePath, meta })
 }
 
 /**
@@ -357,15 +353,57 @@ export const asyncSetArray = (from, to, num = 100) => new Promise(resolve => {
   })
 })
 
-
 /**
  * 获取缓存大小
- * @param {*} win
  */
-export const getCacheSize = () => remote.getCurrentWindow().webContents.session.getCacheSize()
+export const getCacheSize = () => rendererInvoke(NAMES.mainWindow.get_cache_size)
 
 /**
  * 清除缓存
- * @param {*} win
  */
-export const clearCache = () => remote.getCurrentWindow().webContents.session.clearCache()
+export const clearCache = () => rendererInvoke(NAMES.mainWindow.clear_cache)
+
+/**
+ * 设置窗口大小
+ * @param {*} width
+ * @param {*} height
+ */
+export const setWindowSize = (width, height) => rendererSend(NAMES.mainWindow.set_window_size, { width, height })
+
+
+export const getProxyInfo = () => window.globalObj.proxy.enable
+  ? `http://${window.globalObj.proxy.username}:${window.globalObj.proxy.password}@${window.globalObj.proxy.host}:${window.globalObj.proxy.port};`
+  : undefined
+
+
+export const assertApiSupport = source => window.globalObj.qualityList[source] != undefined
+
+export const getSetting = () => rendererInvoke(NAMES.mainWindow.get_setting)
+export const saveSetting = () => rendererInvoke(NAMES.mainWindow.set_app_setting)
+
+export const getPlayList = () => rendererInvoke(NAMES.mainWindow.get_playlist).catch(error => {
+  rendererInvoke(NAMES.mainWindow.get_data_path).then(dataPath => {
+    let filePath = path.join(dataPath, 'playList.json.bak')
+    rendererInvoke(NAMES.mainWindow.show_dialog, {
+      type: 'error',
+      message: window.i18n.t('store.state.load_list_file_error_title'),
+      detail: window.i18n.t('store.state.load_list_file_error_detail', {
+        path: filePath,
+        detail: error.message,
+      }),
+    }).then(() => openDirInExplorer(filePath))
+  })
+  return rendererInvoke(NAMES.mainWindow.get_playlist, true)
+})
+
+// 解析URL参数为对象
+export const parseUrlParams = str => {
+  const params = {}
+  if (typeof str !== 'string') return params
+  const paramsArr = str.split('&')
+  for (const param of paramsArr) {
+    let [key, value] = param.split('=')
+    params[key] = value
+  }
+  return params
+}

@@ -1,12 +1,9 @@
-
 // const isDev = process.env.NODE_ENV === 'development'
-import Store from 'electron-store'
-import { updateSetting } from '../utils'
+import { windowSizeList } from '../../common/config'
 import { version } from '../../../package.json'
-let electronStore = new Store()
-const setting = updateSetting(electronStore.get('setting'))
-electronStore.set('setting', setting)
+
 process.versions.app = version
+
 
 export default {
   themes: [
@@ -36,6 +33,11 @@ export default {
       class: 'red',
     },
     {
+      id: 10,
+      name: '粉装玉琢',
+      class: 'pink',
+    },
+    {
       id: 5,
       name: '重斤球紫',
       class: 'purple',
@@ -46,14 +48,29 @@ export default {
       class: 'grey',
     },
     {
+      id: 11,
+      name: '青出于黑',
+      class: 'ming',
+    },
+    {
+      id: 12,
+      name: '青出于黑',
+      class: 'blue2',
+    },
+    {
       id: 7,
       name: '月里嫦娥',
-      class: 'midAutumn',
+      class: 'mid_autumn',
     },
     {
       id: 8,
       name: '木叶之村',
-      class: 'dhHyrz',
+      class: 'naruto',
+    },
+    {
+      id: 9,
+      name: '新年快乐',
+      class: 'happy_new_year',
     },
   ],
   version: {
@@ -61,8 +78,16 @@ export default {
     newVersion: null,
     showModal: false,
     isError: false,
+    isTimeOut: false,
+    isUnknow: false,
+    isDownloaded: false,
+    isDownloading: false,
+    isLatestVer: false,
+    downloadProgress: null,
   },
   userInfo: null,
-  setting,
-  electronStore,
+  setting: null,
+  settingVersion: null,
+
+  windowSizeList,
 }

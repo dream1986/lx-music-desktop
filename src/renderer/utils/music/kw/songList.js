@@ -7,8 +7,8 @@ export default {
   _requestObj_hotTags: null,
   _requestObj_list: null,
   _requestObj_listDetail: null,
-  limit_list: 25,
-  limit_song: 1000,
+  limit_list: 36,
+  limit_song: 10000,
   successCode: 200,
   sortList: [
     {
@@ -20,6 +20,12 @@ export default {
       id: 'hot',
     },
   ],
+  regExps: {
+    mInfo: /bitrate:(\d+),format:(\w+),size:([\w.]+)/,
+    // http://www.kuwo.cn/playlist_detail/2886046289
+    // https://m.kuwo.cn/h5app/playlist/2736267853?t=qqfriend
+    listDetailLink: /^.+\/playlist(?:_detail)?\/(\d+)(?:\?.*|&.*$|#.*$|$)/,
+  },
   tagsUrl: 'http://wapi.kuwo.cn/api/pc/classify/playlist/getTagList?cmd=rcm_keyword_playlist&user=0&prod=kwplayer_pc_9.0.5.0&vipver=9.0.5.0&source=kwplayer_pc_9.0.5.0&loginUid=0&loginSid=0&appUid=76039576',
   hotTagUrl: 'http://wapi.kuwo.cn/api/pc/classify/playlist/getRcmTagList?loginUid=0&loginSid=0&appUid=76039576',
   getListUrl({ sortId, id, type, page }) {
@@ -93,7 +99,7 @@ export default {
     this._requestObj_list = httpFetch(this.getListUrl({ sortId, id, type, page }))
     return this._requestObj_list.promise.then(({ body }) => {
       if (!id || type == '10000') {
-        if (body.code !== this.successCode) return this.getList(sortId, id, type, page, ++tryNum)
+        if (body.code !== this.successCode) return this.getList(sortId, tagId, page, ++tryNum)
         return {
           list: this.filterList(body.data.data),
           total: body.data.total,
@@ -161,6 +167,9 @@ export default {
       this._requestObj_listDetail.cancelHttp()
     }
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
+
+    if ((/[?&:/]/.test(id))) id = id.replace(this.regExps.listDetailLink, '$1')
+
     this._requestObj_listDetail = httpFetch(this.getListDetailUrl(id, page))
     return this._requestObj_listDetail.promise.then(({ body }) => {
       if (body.result !== 'ok') return this.getListDetail(id, page, ++tryNum)
@@ -181,29 +190,42 @@ export default {
     })
   },
   filterListDetail(rawData) {
-    // console.log(rawList)
-    return rawData.map((item, inedx) => {
-      let formats = item.formats.split('|')
+    // console.log(rawData)
+    return rawData.map(item => {
+      let infoArr = item.MINFO.split(';')
       let types = []
       let _types = {}
-      if (formats.indexOf('MP3128')) {
-        types.push({ type: '128k', size: null })
-        _types['128k'] = {
-          size: null,
+      for (let info of infoArr) {
+        info = info.match(this.regExps.mInfo)
+        if (info) {
+          switch (info[2]) {
+            case 'flac':
+              types.push({ type: 'flac', size: info[3] })
+              _types.flac = {
+                size: info[3].toLocaleUpperCase(),
+              }
+              break
+            case 'mp3':
+              switch (info[1]) {
+                case '320':
+                  types.push({ type: '320k', size: info[3] })
+                  _types['320k'] = {
+                    size: info[3].toLocaleUpperCase(),
+                  }
+                  break
+                case '192':
+                case '128':
+                  types.push({ type: '128k', size: info[3] })
+                  _types['128k'] = {
+                    size: info[3].toLocaleUpperCase(),
+                  }
+                  break
+              }
+              break
+          }
         }
       }
-      if (formats.indexOf('MP3H')) {
-        types.push({ type: '320k', size: null })
-        _types['320k'] = {
-          size: null,
-        }
-      }
-      if (formats.indexOf('ALFLAC')) {
-        types.push({ type: 'flac', size: null })
-        _types.flac = {
-          size: null,
-        }
-      }
+      types.reverse()
 
       return {
         singer: formatSinger(decodeName(item.artist)),
@@ -215,6 +237,7 @@ export default {
         interval: formatPlayTime(parseInt(item.duration)),
         img: null,
         lrc: null,
+        otherSource: null,
         types,
         _types,
         typeUrl: {},

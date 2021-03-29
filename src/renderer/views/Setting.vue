@@ -1,217 +1,444 @@
 <template lang="pug">
-div.scroll(:class="$style.setting")
-  dl
-    dt 基本设置
-    dd
-      h3 主题颜色
-      div
-        ul(:class="$style.theme")
-          li(v-for="theme in themes.list" :key="theme.id" @click="current_setting.themeId = theme.id" :class="[theme.class, themes.active == theme.id ? $style.active : '']")
-            span
-            | {{theme.name}}
+div(:class="$style.main")
+  //- div.scroll(:class="$style.toc")
+  //-   ul(:class="$style.tocList")
+  //-     li(:class="$style.tocListItem" v-for="h2 in toc.list" :key="h2.id")
+  //-       h2(:class="[$style.tocH2, toc.activeId == h2.id ? $style.active : null]" :tips="h2.title")
+  //-         a(:href="'#' + h2.id" @click="toc.activeId = h2.id") {{h2.title}}
+  //-       ul(:class="$style.tocList" v-if="h2.children.length")
+  //-         li(:class="$style.tocSubListItem" v-for="h3 in h2.children" :key="h3.id")
+  //-           h3(:class="[$style.tocH3, toc.activeId == h3.id ? $style.active : null]" :tips="h3.title")
+  //-             a(:href="'#' + h3.id" @click="toc.activeId = h3.id") {{h3.title}}
+  div.scroll(:class="$style.setting" ref="dom_setting")
+    dl(ref="dom_setting_list")
+      dt#basic {{$t('view.setting.basic')}}
+      dd
+        h3#basic_theme {{$t('view.setting.basic_theme')}}
+        div
+          ul(:class="$style.theme")
+            li(v-for="theme in themes.list" :key="theme.id" :tips="$t('store.state.theme_' + theme.class)" @click="current_setting.themeId = theme.id" :class="[theme.class, themes.active == theme.id ? $style.active : '']")
+              span
+              label {{$t('store.state.theme_' + theme.class)}}
 
-    dd(title='弹出层的动画效果')
-      h3 弹出层随机动画
-      div
-        material-checkbox(id="setting_animate" v-model="current_setting.randomAnimate" label="是否启用")
+      dd
+        div(:class="[$style.gapTop, $style.top]")
+          material-checkbox(id="setting_show_animate" v-model="current_setting.isShowAnimation" :label="$t('view.setting.basic_show_animation')")
+        div(:class="$style.gapTop")
+          material-checkbox(id="setting_animate" v-model="current_setting.randomAnimate" :label="$t('view.setting.basic_animation')")
+        div(:class="$style.gapTop")
+          material-checkbox(id="setting_to_tray" v-model="current_setting.tray.isShow" @change="handleTrayShowChange" :label="$t('view.setting.basic_to_tray')")
 
-    dd(title='选择音乐来源')
-      h3 音乐来源
-      div
-        material-checkbox(v-for="item in apiSources" :id="`setting_api_source_${item.id}`" @change="handleAPISourceChange(item.id)" :class="$style.gapTop"
-          need v-model="current_setting.apiSource" :disabled="item.disabled" :value="item.id" :label="item.label" :key="item.id")
 
-    dt 播放设置
-    dd(title="都不选时播放完当前歌曲就停止播放")
-      h3 歌曲切换方式
-      div
-        material-checkbox(:id="`setting_player_togglePlay_${item.value}`" :class="$style.gapLeft" :value="item.value" :key="item.value"
-            v-model="current_setting.player.togglePlayMethod" v-for="item in togglePlayMethods" :label="item.name")
-    dd(title='启用时将优先播放320K品质的歌曲')
-      h3 优先播放高品质音乐
-      div
-        material-checkbox(id="setting_player_highQuality" v-model="current_setting.player.highQuality" label="是否启用")
-    dd(title='在任务栏上显示当前歌曲播放进度')
-      h3 任务栏播放进度条
-      div
-        material-checkbox(id="setting_player_showTaskProgess" v-model="current_setting.player.isShowTaskProgess" label="是否启用")
-    dt 列表设置
-    dd(title='是否显示歌曲源')
-      h3 是否显示歌曲源（仅对我的音乐分类有效）
-      div
-        material-checkbox(id="setting_list_showSource_enable" v-model="current_setting.list.isShowSource" label="是否显示")
-    dd(title='是否恢复播放列表滚动条位置')
-      h3 恢复列表滚动位置（仅对我的音乐分类有效）
-      div
-        material-checkbox(id="setting_list_scroll_enable" v-model="current_setting.list.scroll.enable" label="是否启用")
-    //- dd(title='播放列表是否显示专辑栏')
-      h3 专辑栏
-      div
-        material-checkbox(id="setting_list_showalbum" v-model="current_setting.list.isShowAlbumName" label="是否显示专辑栏")
-    dt 下载设置
-    dd(title='下载歌曲保存的路径')
-      h3 下载路径
-      div
-        p
-          | 当前下载路径：
-          span.auto-hidden.hover(title="点击打开当前路径" :class="$style.savePath" @click="handleOpenDir(current_setting.download.savePath)") {{current_setting.download.savePath}}
-        p
-          material-btn(:class="$style.btn" min @click="handleChangeSavePath") 更改
-    dd(title='下载歌曲时的命名方式')
-      h3 文件命名方式
-      div
-        material-checkbox(:id="`setting_download_musicName_${item.value}`" :class="$style.gapLeft" name="setting_download_musicName" :value="item.value" :key="item.value" need
-            v-model="current_setting.download.fileName" v-for="item in musicNames" :label="item.name")
-    dd(title='是否将封面嵌入音频文件中')
-      h3 封面嵌入（只支持MP3格式）
-      div
-        material-checkbox(id="setting_download_isEmbedPic" v-model="current_setting.download.isEmbedPic" label="是否启用")
-    dd(title='是否同时下载歌词文件')
-      h3 歌词下载
-      div
-        material-checkbox(id="setting_download_isDownloadLrc" v-model="current_setting.download.isDownloadLrc" label="是否启用")
-    dt 网络设置
+      dd(:tips="$t('view.setting.basic_source_title')")
+        h3#basic_source {{$t('view.setting.basic_source')}}
+        div
+          div(v-for="item in apiSources" :key="item.id" :class="$style.gapTop")
+            material-checkbox(:id="`setting_api_source_${item.id}`" name="setting_api_source" @change="handleAPISourceChange(item.id)"
+              need v-model="current_setting.apiSource" :disabled="item.disabled" :value="item.id" :label="item.label")
+          p(:class="$style.gapTop")
+            material-btn(:class="$style.btn" min @click="isShowUserApiModal = true") {{$t('view.setting.basic_source_user_api_btn')}}
+
+      dd(:tips="$t('view.setting.basic_window_size_title')")
+        h3#basic_window_size {{$t('view.setting.basic_window_size')}}
+        div
+          material-checkbox(v-for="(item, index) in windowSizeList" :id="`setting_window_size_${item.id}`" name="setting_window_size" @change="handleWindowSizeChange" :class="$style.gapLeft"
+            need v-model="current_setting.windowSizeId" :value="item.id" :label="$t('view.setting.basic_window_size_' + item.name)" :key="item.id")
+
+      dd(:tips="$t('view.setting.basic_lang_title')")
+        h3#basic_lang {{$t('view.setting.basic_lang')}}
+        div
+          material-checkbox(v-for="item in languageList" :key="item.locale" :id="`setting_lang_${item.locale}`" name="setting_lang"
+            @change="handleLangChange(item.locale)" :class="$style.gapLeft"
+            need v-model="current_setting.langId" :value="item.locale" :label="item.name")
+
+      dd(:tips="$t('view.setting.basic_sourcename_title')")
+        h3#basic_sourcename {{$t('view.setting.basic_sourcename')}}
+        div
+          material-checkbox(v-for="item in sourceNameTypes" :key="item.id" :class="$style.gapLeft" :id="`setting_abasic_sourcename_${item.id}`"
+            name="setting_basic_sourcename" need v-model="current_setting.sourceNameType" :value="item.id" :label="item.label")
+
+      dd
+        h3#basic_control_btn_position {{$t('view.setting.basic_control_btn_position')}}
+        div
+          material-checkbox(v-for="item in controlBtnPositionList" :key="item.id" :class="$style.gapLeft" :id="`setting_basic_control_btn_position_${item.id}`"
+            name="setting_basic_control_btn_position" need v-model="current_setting.controlBtnPosition" :value="item.id" :label="item.name")
+
+    dt#play {{$t('view.setting.play')}}
     dd
-      h3 代理设置（歌曲下载暂不支持代理）
+      div(:class="$style.gapTop")
+        material-checkbox(id="setting_player_save_play_time" v-model="current_setting.player.isSavePlayTime" :label="$t('view.setting.play_save_play_time')")
+      div(:class="$style.gapTop")
+        material-checkbox(id="setting_player_lyric_transition" v-model="current_setting.player.isShowLyricTransition" :label="$t('view.setting.play_lyric_transition')")
+      div(:class="$style.gapTop")
+        material-checkbox(id="setting_player_lyric_play_lxlrc" v-model="current_setting.player.isPlayLxlrc" :label="$t('view.setting.play_lyric_lxlrc')")
+      div(:class="$style.gapTop")
+        material-checkbox(id="setting_player_highQuality" v-model="current_setting.player.highQuality" :label="$t('view.setting.play_quality')")
+      div(:class="$style.gapTop")
+        material-checkbox(id="setting_player_showTaskProgess" v-model="current_setting.player.isShowTaskProgess" :label="$t('view.setting.play_task_bar')")
+      div(:class="$style.gapTop")
+        material-checkbox(id="setting_player_isMediaDeviceRemovedStopPlay" v-model="current_setting.player.isMediaDeviceRemovedStopPlay" :label="$t('view.setting.play_mediaDevice_remove_stop_play')")
+    dd(:tips="$t('view.setting.play_mediaDevice_title')")
+      h3#play_mediaDevice {{$t('view.setting.play_mediaDevice')}}
       div
+        material-selection(:list="mediaDevices" :class="$style.gapLeft" v-model="current_setting.player.mediaDeviceId" item-key="deviceId" item-name="label")
+    dt#desktop_lyric {{$t('view.setting.desktop_lyric')}}
+    dd
+      div(:class="$style.gapTop")
+        material-checkbox(id="setting_desktop_lyric_enable" v-model="current_setting.desktopLyric.enable" :label="$t('view.setting.desktop_lyric_enable')")
+      div(:class="$style.gapTop")
+        material-checkbox(id="setting_desktop_lyric_lock" v-model="current_setting.desktopLyric.isLock" :label="$t('view.setting.desktop_lyric_lock')")
+      div(:class="$style.gapTop")
+        material-checkbox(id="setting_desktop_lyric_alwaysOnTop" v-model="current_setting.desktopLyric.isAlwaysOnTop" :label="$t('view.setting.desktop_lyric_always_on_top')")
+      div(:class="$style.gapTop")
+        material-checkbox(id="setting_desktop_lyric_lockScreen" v-model="current_setting.desktopLyric.isLockScreen" :label="$t('view.setting.desktop_lyric_lock_screen')")
+
+      dt#search {{$t('view.setting.search')}}
+      dd
+        div(:class="$style.gapTop")
+          material-checkbox(id="setting_search_showHot_enable" v-model="current_setting.search.isShowHotSearch" :label="$t('view.setting.search_hot')")
+        div(:class="$style.gapTop")
+          material-checkbox(id="setting_search_showHistory_enable" v-model="current_setting.search.isShowHistorySearch" :label="$t('view.setting.search_history')")
+        div(:class="$style.gapTop")
+          material-checkbox(id="setting_search_focusSearchBox_enable" v-model="current_setting.search.isFocusSearchBox" :label="$t('view.setting.search_focus_search_box')")
+
+      dt#list {{$t('view.setting.list')}}
+      dd
+        div(:class="$style.gapTop")
+          material-checkbox(id="setting_list_showSource_enable" v-model="current_setting.list.isShowSource" :label="$t('view.setting.list_source')")
+        div(:class="$style.gapTop")
+          material-checkbox(id="setting_list_scroll_enable" v-model="current_setting.list.isSaveScrollLocation" :label="$t('view.setting.list_scroll')")
+      //- dd(:tips="播放列表是否显示专辑栏")
+        h3 专辑栏
+        div
+          material-checkbox(id="setting_list_showalbum" v-model="current_setting.list.isShowAlbumName" label="是否显示专辑栏")
+      dt#download {{$t('view.setting.download')}}
+      dd
+        material-checkbox(id="setting_download_enable" v-model="current_setting.download.enable" :label="$t('view.setting.download_enable')")
+      dd(:tips="$t('view.setting.download_path_title')")
+        h3#download_path {{$t('view.setting.download_path')}}
+        div
+          p
+            | {{$t('view.setting.download_path_label')}}
+            span.auto-hidden.hover(:tips="$t('view.setting.download_path_open_label')" :class="$style.savePath" @click="handleOpenDir(current_setting.download.savePath)") {{current_setting.download.savePath}}
+          p
+            material-btn(:class="$style.btn" min @click="handleChangeSavePath") {{$t('view.setting.download_path_change_btn')}}
+      dd(:tips="$t('view.setting.download_name_title')")
+        h3#download_name {{$t('view.setting.download_name')}}
+        div
+          material-checkbox(:id="`setting_download_musicName_${item.value}`" :class="$style.gapLeft" name="setting_download_musicName" :value="item.value" :key="item.value" need
+              v-model="current_setting.download.fileName" v-for="item in musicNames" :label="item.name")
+      dd
+        h3#download_data_embed {{$t('view.setting.download_data_embed')}}
+        div(:class="$style.gapTop")
+          material-checkbox(id="setting_download_isEmbedPic" v-model="current_setting.download.isEmbedPic" :label="$t('view.setting.download_embed_pic')")
+        div(:class="$style.gapTop")
+          material-checkbox(id="setting_download_isEmbedLyric" v-model="current_setting.download.isEmbedLyric" :label="$t('view.setting.download_embed_lyric')")
+      dd(:tips="$t('view.setting.download_lyric_title')")
+        h3#download_lyric {{$t('view.setting.download_lyric')}}
+        div
+          material-checkbox(id="setting_download_isDownloadLrc" v-model="current_setting.download.isDownloadLrc" :label="$t('view.setting.is_enable')")
+
+      dt#hot_key {{$t('view.setting.hot_key')}}
+      dd
+        h3#hot_key_local_title {{$t('view.setting.hot_key_local_title')}}
+        div
+          material-checkbox(id="setting_download_hotKeyLocal" v-model="current_hot_key.local.enable" :label="$t('view.setting.is_enable')" @change="handleHotKeySaveConfig")
+        div(:class="$style.hotKeyContainer" :style="{ opacity: current_hot_key.local.enable ? 1 : .6 }")
+          div(:class="$style.hotKeyItem" v-for="item in hotKeys.local")
+            h4(:class="$style.hotKeyItemTitle") {{$t('view.setting.hot_key_' + item.name)}}
+            material-input.key-bind(:class="$style.hotKeyItemInput" readonly @keyup.prevent :placeholder="$t('view.setting.hot_key_unset_input')"
+              :value="hotKeyConfig.local[item.name] && formatHotKeyName(hotKeyConfig.local[item.name].key)"
+              @focus="handleHotKeyFocus($event, item, 'local')"
+              @blur="handleHotKeyBlur($event, item, 'local')")
+
+        h3#hot_key_global_title {{$t('view.setting.hot_key_global_title')}}
+        div
+          material-checkbox(id="setting_download_hotKeyGlobal" v-model="current_hot_key.global.enable" :label="$t('view.setting.is_enable')" @change="handleEnableHotKey")
+        div(:class="$style.hotKeyContainer" :style="{ opacity: current_hot_key.global.enable ? 1 : .6 }")
+          div(:class="$style.hotKeyItem" v-for="item in hotKeys.global")
+            h4(:class="$style.hotKeyItemTitle") {{$t('view.setting.hot_key_' + item.name)}}
+            material-input.key-bind(:class="[$style.hotKeyItemInput, hotKeyConfig.global[item.name] && hotKeyStatus[hotKeyConfig.global[item.name].key] && hotKeyStatus[hotKeyConfig.global[item.name].key].status === false ? $style.hotKeyFailed : null]"
+              :value="hotKeyConfig.global[item.name] && formatHotKeyName(hotKeyConfig.global[item.name].key)" @input.prevent readonly :placeholder="$t('view.setting.hot_key_unset_input')"
+              @focus="handleHotKeyFocus($event, item, 'global')"
+              @blur="handleHotKeyBlur($event, item, 'global')")
+
+      dt#network {{$t('view.setting.network')}}
+      dd
+        h3#network_proxy_title {{$t('view.setting.network_proxy_title')}}
+        div
+          p
+            material-checkbox(id="setting_network_proxy_enable" v-model="current_setting.network.proxy.enable" @change="handleProxyChange('enable')" :label="$t('view.setting.is_enable')")
+          p
+            material-input(:class="$style.gapLeft" v-model="current_setting.network.proxy.host" @change="handleProxyChange('host')" :placeholder="$t('view.setting.network_proxy_host')")
+            material-input(:class="$style.gapLeft" v-model="current_setting.network.proxy.port" @change="handleProxyChange('port')" :placeholder="$t('view.setting.network_proxy_port')")
+          p
+            material-input(:class="$style.gapLeft" v-model="current_setting.network.proxy.username" @change="handleProxyChange('username')" :placeholder="$t('view.setting.network_proxy_username')")
+            material-input(:class="$style.gapLeft" v-model="current_setting.network.proxy.password" @change="handleProxyChange('password')" type="password" :placeholder="$t('view.setting.network_proxy_password')")
+      dt#odc {{$t('view.setting.odc')}}
+      dd
+        div(:class="$style.gapTop")
+          material-checkbox(id="setting_odc_isAutoClearSearchInput" v-model="current_setting.odc.isAutoClearSearchInput" :label="$t('view.setting.odc_clear_search_input')")
+        div(:class="$style.gapTop")
+          material-checkbox(id="setting_odc_isAutoClearSearchList" v-model="current_setting.odc.isAutoClearSearchList" :label="$t('view.setting.odc_clear_search_list')")
+      dt#backup {{$t('view.setting.backup')}}
+      dd
+        h3#backup_part {{$t('view.setting.backup_part')}}
+        div
+          material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleImportPlayList") {{$t('view.setting.backup_part_import_list')}}
+          material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleExportPlayList") {{$t('view.setting.backup_part_export_list')}}
+          material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleImportSetting") {{$t('view.setting.backup_part_import_setting')}}
+          material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleExportSetting") {{$t('view.setting.backup_part_export_setting')}}
+      dd
+        h3#backup_all {{$t('view.setting.backup_all')}}
+        div
+          material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleImportAllData") {{$t('view.setting.backup_all_import')}}
+          material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleExportAllData") {{$t('view.setting.backup_all_export')}}
+      dt#other {{$t('view.setting.other')}}
+      dd
+        h3#other_tray_theme {{$t('view.setting.other_tray_theme')}}
+        div
+          material-checkbox(:id="'setting_tray_theme_' + item.id" v-model="current_setting.tray.themeId" name="setting_tray_theme" need :class="$style.gapLeft"
+            :label="$t('view.setting.other_tray_theme_' + item.name)" :key="item.id" :value="item.id" v-for="item in trayThemeList")
+      dd
+        h3#other_resource_cache {{$t('view.setting.other_resource_cache')}}
+        div
+          p
+            | {{$t('view.setting.other_resource_cache_label')}}
+            span.auto-hidden {{cacheSize}}
+          p
+            material-btn(:class="$style.btn" min :disabled="isDisabledResourceCacheClear" @click="clearResourceCache") {{$t('view.setting.other_resource_cache_clear_btn')}}
+      dd
+        h3#other_play_list_cache {{$t('view.setting.other_play_list_cache')}}
+        div
+          material-btn(:class="$style.btn" min :disabled="isDisabledListCacheClear" @click="clearListCache") {{$t('view.setting.other_play_list_cache_clear_btn')}}
+
+      dt#update {{$t('view.setting.update')}}
+      dd
+        p.small
+          | {{$t('view.setting.update_latest_label')}}{{version.newVersion ? version.newVersion.version : $t('view.setting.update_unknown')}}
+        p.small {{$t('view.setting.update_current_label')}}{{version.version}}
+        p.small(v-if="this.version.downloadProgress" style="line-height: 1.5;")
+          | {{$t('view.setting.update_downloading')}}
+          br
+          | {{$t('view.setting.update_progress')}}{{downloadProgress}}
+        p(v-if="version.newVersion")
+          span(v-if="version.isLatestVer") {{$t('view.setting.update_latest')}}
+          material-btn(v-else :class="[$style.btn, $style.gapLeft]" min @click="showUpdateModal") {{$t('view.setting.update_open_version_modal_btn')}}
+        p.small(v-else) {{$t('view.setting.update_checking')}}
+      dt#about {{$t('view.setting.about')}}
+      dd
+        p.small
+          | 本软件完全免费，代码已开源，开源地址：
+          span.hover.underline(:tips="$t('view.setting.click_open')" @click="handleOpenUrl('https://github.com/lyswhut/lx-music-desktop#readme')") https://github.com/lyswhut/lx-music-desktop
+        p.small
+          | 最新版网盘下载地址（网盘内有Windows、MAC版）：
+          span.hover.underline(:tips="$t('view.setting.click_open')" @click="handleOpenUrl('https://www.lanzoux.com/b0bf2cfa/')") 网盘地址
+          | &nbsp;&nbsp;密码：
+          span.hover(:tips="$t('view.setting.click_copy')" @click="clipboardWriteText('glqw')") glqw
+        p.small
+          | 软件的常见问题可转至：
+          span.hover.underline(:tips="$t('view.setting.click_open')" @click="handleOpenUrl('https://github.com/lyswhut/lx-music-desktop/blob/master/FAQ.md')") 常见问题
+        p.small
+          strong 仔细 仔细 仔细
+          | 地阅读常见问题后，
+        p.small
+          | 仍有问题可加企鹅群&nbsp;
+          span.hover(:tips="$t('view.setting.click_open')" @click="handleOpenUrl('https://jq.qq.com/?_wv=1027&k=51ECeq2')") 830125506
+          | &nbsp;反馈
+          strong (为免满人，无事勿加，入群先看群公告)
+          | ，或到 GitHub 提交&nbsp;
+          span.hover.underline(:tips="$t('view.setting.click_open')" @click="handleOpenUrl('https://github.com/lyswhut/lx-music-desktop/issues')") issue
+
+        br
+        p.small 感谢以前捐赠过的人❤️，现在软件不再接受捐赠，建议把你们的爱心用来支持正版音乐，
+        p.small 由于软件开发的初衷仅是为了对新技术的学习与研究，因此软件直至停止维护都将会一直保持纯净。
+
+        p.small
+          | 你已签署本软件的&nbsp;
+          material-btn(min @click="handleShowPact") 许可协议
+          | ，协议的在线版本在&nbsp;
+          strong.hover.underline(:tips="$t('view.setting.click_open')" @click="handleOpenUrl('https://github.com/lyswhut/lx-music-desktop#%E9%A1%B9%E7%9B%AE%E5%8D%8F%E8%AE%AE')") 这里
+          | &nbsp;。
+        br
+
         p
-          material-checkbox(id="setting_network_proxy_enable" v-model="current_setting.network.proxy.enable" @change="handleProxyChange('enable')" label="是否启用")
-        p
-          material-input(:class="$style.gapLeft" v-model="current_setting.network.proxy.host" @change="handleProxyChange('host')" placeholder="主机")
-          material-input(:class="$style.gapLeft" v-model="current_setting.network.proxy.port" @change="handleProxyChange('port')" placeholder="端口")
-        p
-          material-input(:class="$style.gapLeft" v-model="current_setting.network.proxy.username" @change="handleProxyChange('username')" placeholder="用户名")
-          material-input(:class="$style.gapLeft" v-model="current_setting.network.proxy.password" @change="handleProxyChange('password')" type="password" placeholder="密码")
-    dt 强迫症设置
-    dd
-      h3 离开搜索界面时清空搜索框
-      div
-        material-checkbox(id="setting_odc_isAutoClearSearchInput" v-model="current_setting.odc.isAutoClearSearchInput" label="是否启用")
-    dt 备份与恢复
-    dd
-      h3 部分数据
-      div
-        material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleImportPlayList") 导入列表
-        material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleExportPlayList") 导出列表
-        material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleImportSetting") 导入设置
-        material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleExportSetting") 导出设置
-    dd
-      h3 所有数据（设置与试听列表）
-      div
-        material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleImportAllData") 导入
-        material-btn(:class="[$style.btn, $style.gapLeft]" min @click="handleExportAllData") 导出
-    dt 其他
-    dd
-      h3 缓存大小（清理缓存后图片等资源将需要重新下载）
-      div
-        p
-          | 软件已使用缓存大小：
-          span.auto-hidden(title="当前已用缓存") {{cacheSize}}
-        p
-          material-btn(:class="$style.btn" min @click="clearCache") 清理缓存
-    dt 软件更新
-    dd
-      p.small
-        | 最新版本：{{version.newVersion ? version.newVersion.version : '未知'}}
-      p.small 当前版本：{{version.version}}
-      p.small(v-if="version.newVersion")
-        span(v-if="isLatestVer") 软件已是最新，尽情地体验吧~🥂
-        material-btn(v-else-if="setting.ignoreVersion || version.isError" :class="[$style.btn, $style.gapLeft]" min @click="showUpdateModal") 打开更新窗口 🚀
-        span(v-else) 发现新版本并在努力下载中，请稍等...⏳
-      p.small(v-else) 检查更新中...
-    dt 关于洛雪音乐
-    dd
-      p.small
-        | 本软件完全免费，代码已开源，开源地址：
-        span.hover.underline(title="点击打开" @click="handleOpenUrl('https://github.com/lyswhut/lx-music-desktop#readme')") https://github.com/lyswhut/lx-music-desktop
-      p.small
-        | 最新版网盘下载地址（网盘内有Windows、MAC版）：
-        span.hover.underline(title="点击打开" @click="handleOpenUrl('https://www.lanzous.com/b906260/')") 网盘地址
-        | &nbsp;&nbsp;密码：
-        span.hover(title="点击复制" @click="clipboardWriteText('glqw')") glqw
-      p.small
-        | 软件的常见问题可转至：
-        span.hover.underline(title="点击打开" @click="handleOpenUrl('https://github.com/lyswhut/lx-music-desktop#常见问题')") 常见问题
-      //- p.small
-          | 怀念曾经的
-          strong @messoer
-          | ，非常感谢曾经为本软件提供数据源！
-      p.small
-        | 阅读常见问题后仍有问题可 mail to：
-        span.hover(title="点击复制" @click="clipboardWriteText('lyswhut@qq.com')") lyswhut@qq.com
-        | &nbsp;或到 GitHub 提交&nbsp;
-        span.hover.underline(title="点击打开" @click="handleOpenUrl('https://github.com/lyswhut/lx-music-desktop/issues')") issue
-      p.small
-        | 若觉得好用的话可以去 GitHub 点个
-        strong star
-        | 支持作者哦~~🍻
-      p
-        span 如果你资金充裕，还可以
-        material-btn(@click="handleOpenUrl('https://cdn.stsky.cn/qrc.png')" min title="土豪，你好 🙂") 捐赠下作者
-        span ，以帮我分担点服务器费用~❤️
-      p.small
-        |  本软件仅用于学习交流使用，禁止将本软件用于
-        strong 非法用途
-        | 或
-        strong 商业用途
-        | 。
-      p.small
-          | 使用本软件造成的一切后果由
-          strong 使用者
-          | 承担！
-      p
-        small By：
-        | 落雪无痕
+          small By：
+          | 落雪无痕
+  material-user-api-modal(v-model="isShowUserApiModal")
 </template>
 
 <script>
 import { mapGetters, mapMutations } from 'vuex'
 import {
   openDirInExplorer,
-  openSelectDir,
+  selectDir,
   openSaveDir,
-  updateSetting,
   openUrl,
   clipboardWriteText,
   getCacheSize,
   clearCache,
   sizeFormate,
+  setWindowSize,
 } from '../utils'
-import { rendererSend } from '../../common/icp'
+import { rendererSend, rendererInvoke, NAMES } from '@common/ipc'
+import { mergeSetting, isMac } from '../../common/utils'
+import apiSourceInfo from '../utils/music/api-source-info'
 import fs from 'fs'
+import languageList from '@renderer/lang/languages.json'
+import { base as eventBaseName } from '../event/names'
+import * as hotKeys from '../../common/hotKey'
+import { mainWindow as eventsNameMainWindow, winLyric as eventsNameWinLyric } from '../../main/events/_name'
+import { gzip, gunzip } from 'zlib'
 
+let hotKeyTargetInput
+let newHotKey
 
 export default {
   name: 'Setting',
   computed: {
-    ...mapGetters(['setting', 'themes', 'version']),
-    ...mapGetters('list', ['defaultList', 'loveList']),
-    isLatestVer() {
-      return this.version.newVersion && this.version.version === this.version.newVersion.version
+    ...mapGetters(['setting', 'settingVersion', 'themes', 'version', 'windowSizeList']),
+    ...mapGetters('list', ['defaultList', 'loveList', 'userList']),
+    isShowRebootBtn() {
+      return this.current_setting.windowSizeId != window.currentWindowSizeId
+    },
+    downloadProgress() {
+      return this.version.downloadProgress
+        ? `${this.version.downloadProgress.percent.toFixed(2)}% - ${sizeFormate(this.version.downloadProgress.transferred)}/${sizeFormate(this.version.downloadProgress.total)} - ${sizeFormate(this.version.downloadProgress.bytesPerSecond)}/s`
+        : this.$t('view.setting.update_init')
+    },
+    // togglePlayMethods() {
+    //   return [
+    //     {
+    //       name: this.$t('view.setting.play_toggle_list_loop'),
+    //       value: 'listLoop',
+    //     },
+    //     {
+    //       name: this.$t('view.setting.play_toggle_random'),
+    //       value: 'random',
+    //     },
+    //     {
+    //       name: this.$t('view.setting.play_toggle_list'),
+    //       value: 'list',
+    //     },
+    //     {
+    //       name: this.$t('view.setting.play_toggle_single_loop'),
+    //       value: 'singleLoop',
+    //     },
+    //   ]
+    // },
+    apiSources() {
+      return [
+        ...apiSourceInfo.map(api => ({
+          id: api.id,
+          label: this.$t('view.setting.basic_source_' + api.id) || api.name,
+          disabled: api.disabled,
+        })),
+        ...window.globalObj.userApi.list.map(api => ({
+          id: api.id,
+          label: `${api.name}${api.description ? `（${api.description}）` : ''}${api.id == this.setting.apiSource ? `[${this.getApiStatus()}]` : ''}`,
+          status: api.status,
+          message: api.message,
+          disabled: false,
+        })),
+      ]
+    },
+    sourceNameTypes() {
+      return [
+        {
+          id: 'real',
+          label: this.$t('view.setting.basic_sourcename_real'),
+        },
+        {
+          id: 'alias',
+          label: this.$t('view.setting.basic_sourcename_alias'),
+        },
+      ]
+    },
+    musicNames() {
+      return [
+        {
+          name: this.$t('view.setting.download_name1'),
+          value: '歌名 - 歌手',
+        },
+        {
+          name: this.$t('view.setting.download_name2'),
+          value: '歌手 - 歌名',
+        },
+        {
+          name: this.$t('view.setting.download_name3'),
+          value: '歌名',
+        },
+      ]
+    },
+    controlBtnPositionList() {
+      return [
+        {
+          name: this.$t('view.setting.basic_control_btn_position_left'),
+          id: 'left',
+        },
+        {
+          name: this.$t('view.setting.basic_control_btn_position_right'),
+          id: 'right',
+        },
+      ]
+    },
+    trayThemeList() {
+      return [
+        {
+          id: 0,
+          name: 'native',
+        },
+        {
+          id: 1,
+          name: 'origin',
+        },
+      ]
     },
   },
   data() {
     return {
       current_setting: {
-        version: null,
         player: {
           togglePlayMethod: 'random',
           highQuality: false,
           isShowTaskProgess: true,
+          volume: 1,
+          mediaDeviceId: 'default',
+          isMediaDeviceRemovedStopPlay: false,
+        },
+        desktopLyric: {
+          enable: false,
+          isLock: false,
+          width: 600,
+          height: 700,
+          x: -1,
+          y: -1,
+          theme: '',
+          style: {
+            fontSize: 125,
+            opacity: 80,
+            isZoomActiveLrc: true,
+          },
         },
         list: {
           isShowAlbumName: true,
           isShowSource: true,
-          scroll: {
-            enable: true,
-            locations: {},
-          },
+          isSaveScrollLocation: true,
+        },
+        search: {
+          searchSource: 'kw',
+          tempSearchSource: 'kw',
+          isShowHotSearch: false,
+          isShowHistorySearch: false,
+          isFocusSearchBox: false,
         },
         download: {
+          enable: false,
           savePath: '',
           fileName: '歌名 - 歌手',
           isDownloadLrc: false,
           isEmbedPic: true,
+          isEmbedLyric: true,
         },
         network: {
           proxy: {
@@ -224,82 +451,186 @@ export default {
         },
         odc: {
           isAutoClearSearchInput: false,
+          isAutoClearSearchList: false,
         },
+        tray: {
+          isShow: false,
+          isToTray: false,
+          themeId: 0,
+        },
+        windowSizeId: 1,
+        langId: 'cns',
         themeId: 0,
         sourceId: 0,
+        isShowAnimation: true,
         randomAnimate: true,
-        apiSource: 'messoer',
+        isAgreePact: false,
+        controlBtnPosition: 'left',
+        apiSource: 'temp',
       },
-      togglePlayMethods: [
-        {
-          name: '列表循环',
-          value: 'listLoop',
+      current_hot_key: {
+        local: {
+          enable: false,
+          keys: {},
         },
-        {
-          name: '列表随机',
-          value: 'random',
+        global: {
+          enable: false,
+          keys: {},
         },
-        {
-          name: '顺序播放',
-          value: 'list',
-        },
-        {
-          name: '单曲循环',
-          value: 'singleLoop',
-        },
-      ],
-      apiSources: [
-        // {
-        //   id: 'messoer',
-        //   // label: '由 messoer 提供的接口（推荐，软件的所有功能都可用）',
-        //   label: '由 messoer 提供的接口（该接口已关闭）',
-        //   disabled: true,
-        // },
-        // {
-        //   id: 'internal',
-        //   label: '内置接口（只能试听或下载128k音质，该接口支持软件的所有功能）',
-        //   disabled: false,
-        // },
-        {
-          id: 'test',
-          label: '测试接口（几乎软件的所有功能都可用，该接口访问速度略慢）',
-          disabled: false,
-        },
-        {
-          id: 'temp',
-          label: '临时接口（软件的某些功能不可用，该接口比测试接口快一些，建议测试接口不可用再使用本接口）',
-          disabled: false,
-        },
-      ],
-      musicNames: [
-        {
-          name: '歌名 - 歌手',
-          value: '歌名 - 歌手',
-        },
-        {
-          name: '歌手 - 歌名',
-          value: '歌手 - 歌名',
-        },
-        {
-          name: '歌名',
-          value: '歌名',
-        },
-      ],
+      },
+      languageList,
       cacheSize: '0 B',
+      mediaDevices: [],
+      hotKeys: {
+        local: [
+          {
+            name: hotKeys.player.toggle_play.name,
+            action: hotKeys.player.toggle_play.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.player.prev.name,
+            action: hotKeys.player.prev.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.player.next.name,
+            action: hotKeys.player.next.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.common.focusSearchInput.name,
+            action: hotKeys.common.focusSearchInput.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.common.min.name,
+            action: hotKeys.common.min.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.common.close.name,
+            action: hotKeys.common.close.action,
+            type: eventsNameMainWindow.name,
+          },
+        ],
+        global: [
+          {
+            name: hotKeys.common.min_toggle.name,
+            action: hotKeys.common.min_toggle.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.common.hide_toggle.name,
+            action: hotKeys.common.hide_toggle.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.common.close.name,
+            action: hotKeys.common.close.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.player.toggle_play.name,
+            action: hotKeys.player.toggle_play.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.player.prev.name,
+            action: hotKeys.player.prev.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.player.next.name,
+            action: hotKeys.player.next.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.player.volume_up.name,
+            action: hotKeys.player.volume_up.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.player.volume_down.name,
+            action: hotKeys.player.volume_down.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.player.volume_mute.name,
+            action: hotKeys.player.volume_mute.action,
+            type: eventsNameMainWindow.name,
+          },
+          {
+            name: hotKeys.desktop_lyric.toggle_visible.name,
+            action: hotKeys.desktop_lyric.toggle_visible.action,
+            type: eventsNameWinLyric.name,
+          },
+          {
+            name: hotKeys.desktop_lyric.toggle_lock.name,
+            action: hotKeys.desktop_lyric.toggle_lock.action,
+            type: eventsNameWinLyric.name,
+          },
+          {
+            name: hotKeys.desktop_lyric.toggle_always_top.name,
+            action: hotKeys.desktop_lyric.toggle_always_top.action,
+            type: eventsNameWinLyric.name,
+          },
+        ],
+      },
+      hotKeyConfig: {
+        local: {},
+        global: {},
+      },
+      hotKeyStatus: {
+
+      },
+      isEditHotKey: false,
+      isShowUserApiModal: false,
+      toc: {
+        list: [],
+        activeId: '',
+      },
+      isDisabledResourceCacheClear: false,
+      isDisabledListCacheClear: false,
     }
   },
   watch: {
     current_setting: {
       handler(n, o) {
-        if (!o.version) return
+        if (!this.settingVersion) return
+        if (JSON.stringify(this.setting) === JSON.stringify(n)) return
         this.setSetting(JSON.parse(JSON.stringify(n)))
       },
       deep: true,
     },
+    'setting.isAgreePact'(n) {
+      this.current_setting.isAgreePact = n
+    },
+    'setting.player.mediaDeviceId'(n) {
+      this.current_setting.player.mediaDeviceId = n
+    },
+    'setting.player.isMute'(n) {
+      this.current_setting.player.isMute = n
+    },
+    'setting.apiSource'(n) {
+      this.current_setting.apiSource = n
+    },
+    'setting.desktopLyric.enable'(n) {
+      this.current_setting.desktopLyric.enable = n
+    },
+    'setting.desktopLyric.isLock'(n) {
+      this.current_setting.desktopLyric.isLock = n
+    },
+    'setting.player.togglePlayMethod'(n) {
+      this.current_setting.player.togglePlayMethod = n
+    },
+    // 'setting.player.isPlayLxlrc'(n) {
+    //   this.current_setting.player.isPlayLxlrc = n
+    // },
     'current_setting.player.isShowTaskProgess'(n) {
       if (n) return
       this.$nextTick(() => {
-        rendererSend('progress', {
+        rendererSend(NAMES.mainWindow.progress, {
           status: -1,
           mode: 'normal',
         })
@@ -307,18 +638,68 @@ export default {
     },
   },
   mounted() {
+    navigator.mediaDevices.addEventListener('devicechange', this.getMediaDevice)
+    window.eventHub.$on(eventBaseName.set_config, this.handleUpdateSetting)
+    window.eventHub.$on(eventBaseName.key_down, this.handleKeyDown)
+    window.eventHub.$on(eventBaseName.set_hot_key_config, this.handleUpdateHotKeyConfig)
     this.init()
   },
+  beforeDestroy() {
+    navigator.mediaDevices.removeEventListener('devicechange', this.getMediaDevice)
+    window.eventHub.$off(eventBaseName.set_config, this.handleUpdateSetting)
+    window.eventHub.$off(eventBaseName.key_down, this.handleKeyDown)
+    window.eventHub.$off(eventBaseName.set_hot_key_config, this.handleUpdateHotKeyConfig)
+  },
   methods: {
-    ...mapMutations(['setSetting', 'setVersionModalVisible']),
-    ...mapMutations('list', ['setList']),
+    ...mapMutations(['setSetting', 'setSettingVersion', 'setVersionModalVisible']),
+    ...mapMutations('list', {
+      setList: 'setList',
+      clearMyListCache: 'clearCache',
+    }),
+    ...mapMutations(['setMediaDeviceId']),
     init() {
       this.current_setting = JSON.parse(JSON.stringify(this.setting))
+      if (!window.currentWindowSizeId) window.currentWindowSizeId = this.setting.windowSizeId
+      // this.initTOC()
       this.getCacheSize()
+      this.getMediaDevice()
+      this.current_hot_key = window.appHotKeyConfig
+      this.initHotKeyConfig()
+      this.getHotKeyStatus()
     },
+    // initTOC() {
+    //   const list = this.$refs.dom_setting_list.children
+    //   const toc = []
+    //   let prevTitle
+    //   for (const item of list) {
+    //     if (item.tagName == 'DT') {
+    //       prevTitle = {
+    //         title: item.innerText.replace(/[（(].+?[)）]/, ''),
+    //         id: item.getAttribute('id'),
+    //         dom: item,
+    //         children: [],
+    //       }
+    //       toc.push(prevTitle)
+    //       continue
+    //     }
+    //     const h3 = item.querySelector('h3')
+    //     if (h3) {
+    //       prevTitle.children.push({
+    //         title: h3.innerText.replace(/[（(].+?[)）]/, ''),
+    //         id: h3.getAttribute('id'),
+    //         dom: h3,
+    //       })
+    //     }
+    //   }
+    //   console.log(toc)
+    //   this.toc.list = toc
+    // },
+    // handleListScroll(event) {
+    //   // console.log(event.target.scrollTop)
+    // },
     handleChangeSavePath() {
-      openSelectDir({
-        title: '选择歌曲保存路径',
+      selectDir({
+        title: this.$t('view.setting.download_select_save_path'),
         defaultPath: this.current_setting.download.savePath,
         properties: ['openDirectory'],
       }).then(result => {
@@ -329,92 +710,104 @@ export default {
     handleOpenDir(dir) {
       openDirInExplorer(dir)
     },
-    importSetting(path) {
-      let setting
+    async importSetting(path) {
+      let settingData
       try {
-        setting = JSON.parse(fs.readFileSync(path, 'utf8'))
+        settingData = JSON.parse(await this.handleReadFile(path))
       } catch (error) {
         return
       }
-      if (setting.type !== 'setting') return
-      this.setSetting(updateSetting(setting.data))
-      this.init()
+      if (settingData.type !== 'setting') return
+      const { version: settingVersion, setting } = mergeSetting(settingData.data)
+      setting.isAgreePact = false
+      this.refreshSetting(setting, settingVersion)
     },
     exportSetting(path) {
       console.log(path)
       const data = {
         type: 'setting',
-        data: this.setting,
+        data: Object.assign({ version: this.settingVersion }, this.setting),
       }
-      fs.writeFile(path, JSON.stringify(data, null, 2), 'utf8', err => {
-        console.log(err)
-      })
+      this.handleSaveFile(path, JSON.stringify(data))
     },
-    importPlayList(path) {
+    async importPlayList(path) {
       let listData
       try {
-        listData = JSON.parse(fs.readFileSync(path, 'utf8'))
+        listData = JSON.parse(await this.handleReadFile(path))
       } catch (error) {
         return
       }
       console.log(listData.type)
 
       // 兼容0.6.2及以前版本的列表数据
-      if (listData.type === 'defautlList') return this.setList({ id: 'default', list: listData.data.list })
+      if (listData.type === 'defautlList') return this.setList({ id: 'default', list: listData.data.list, name: '试听列表', location: 0 })
 
       if (listData.type !== 'playList') return
 
       for (const list of listData.data) {
-        this.setList({ id: list.id, list: list.list })
+        if (list.location == null) list.location = 0
+        this.setList(list)
       }
     },
     exportPlayList(path) {
-      const data = {
+      const data = JSON.parse(JSON.stringify({
         type: 'playList',
         data: [
           this.defaultList,
           this.loveList,
+          ...this.userList,
         ],
+      }))
+      for (const list of data.data) {
+        for (const item of list.list) {
+          if (item.otherSource) delete item.otherSource
+        }
       }
-      fs.writeFile(path, JSON.stringify(data, null, 2), 'utf8', err => {
-        console.log(err)
-      })
+      this.handleSaveFile(path, JSON.stringify(data))
     },
-    importAllData(path) {
+    async importAllData(path) {
       let allData
       try {
-        allData = JSON.parse(fs.readFileSync(path, 'utf8'))
+        allData = JSON.parse(await this.handleReadFile(path))
       } catch (error) {
         return
       }
       if (allData.type !== 'allData') return
-      this.setSetting(updateSetting(allData.setting))
-      this.init()
-      if (allData.defaultList) return this.setList({ id: 'default', list: allData.defaultList.list })
+      const { version: settingVersion, setting } = mergeSetting(allData.setting)
+      setting.isAgreePact = false
+      this.refreshSetting(setting, settingVersion)
+
+      // 兼容0.6.2及以前版本的列表数据
+      if (allData.defaultList) return this.setList({ id: 'default', list: allData.defaultList.list, name: '试听列表', location: 0 })
 
       for (const list of allData.playList) {
-        this.setList({ id: list.id, list: list.list })
+        if (list.location == null) list.location = 0
+        this.setList(list)
       }
     },
-    exportAllData(path) {
-      let allData = {
+    async exportAllData(path) {
+      let allData = JSON.parse(JSON.stringify({
         type: 'allData',
-        setting: this.setting,
+        setting: Object.assign({ version: this.settingVersion }, this.setting),
         playList: [
           this.defaultList,
           this.loveList,
+          ...this.userList,
         ],
+      }))
+      for (const list of allData.playList) {
+        for (const item of list.list) {
+          if (item.otherSource) delete item.otherSource
+        }
       }
-      fs.writeFile(path, JSON.stringify(allData, null, 2), 'utf8', err => {
-        console.log(err)
-      })
+      this.handleSaveFile(path, JSON.stringify(allData))
     },
     handleImportAllData() {
-      openSelectDir({
-        title: '选择备份文件',
+      selectDir({
+        title: this.$t('view.setting.backup_all_import_desc'),
         properties: ['openFile'],
         filters: [
-          { name: 'Setting', extensions: ['json'] },
+          { name: 'Setting', extensions: ['json', 'lxmc'] },
           { name: 'All Files', extensions: ['*'] },
         ],
       }).then(result => {
@@ -424,19 +817,19 @@ export default {
     },
     handleExportAllData() {
       openSaveDir({
-        title: '选择备份保存位置',
-        defaultPath: 'lx_datas.json',
+        title: this.$t('view.setting.backup_all_export_desc'),
+        defaultPath: 'lx_datas.lxmc',
       }).then(result => {
         if (result.canceled) return
         this.exportAllData(result.filePath)
       })
     },
     handleImportSetting() {
-      openSelectDir({
-        title: '选择配置文件',
+      selectDir({
+        title: this.$t('view.setting.backup_part_import_setting_desc'),
         properties: ['openFile'],
         filters: [
-          { name: 'Setting', extensions: ['json'] },
+          { name: 'Setting', extensions: ['json', 'lxmc'] },
           { name: 'All Files', extensions: ['*'] },
         ],
       }).then(result => {
@@ -446,19 +839,19 @@ export default {
     },
     handleExportSetting() {
       openSaveDir({
-        title: '选择设置保存位置',
-        defaultPath: 'lx_setting.json',
+        title: this.$t('view.setting.backup_part_export_setting_desc'),
+        defaultPath: 'lx_setting.lxmc',
       }).then(result => {
         if (result.canceled) return
         this.exportSetting(result.filePath)
       })
     },
     handleImportPlayList() {
-      openSelectDir({
-        title: '选择列表文件',
+      selectDir({
+        title: this.$t('view.setting.backup_part_import_list_desc'),
         properties: ['openFile'],
         filters: [
-          { name: 'Play List', extensions: ['json'] },
+          { name: 'Play List', extensions: ['json', 'lxmc'] },
           { name: 'All Files', extensions: ['*'] },
         ],
       }).then(result => {
@@ -468,8 +861,8 @@ export default {
     },
     handleExportPlayList() {
       openSaveDir({
-        title: '选择设置保存位置',
-        defaultPath: 'lx_list.json',
+        title: this.$t('view.setting.backup_part_export_list_desc'),
+        defaultPath: 'lx_list.lxmc',
       }).then(result => {
         if (result.canceled) return
         this.exportPlayList(result.filePath)
@@ -497,10 +890,231 @@ export default {
         this.cacheSize = sizeFormate(size)
       })
     },
-    clearCache() {
+    clearResourceCache() {
+      this.isDisabledResourceCacheClear = true
       clearCache().then(() => {
         this.getCacheSize()
+        this.isDisabledResourceCacheClear = false
       })
+    },
+    clearListCache() {
+      this.isDisabledListCacheClear = true
+      this.clearMyListCache()
+      this.isDisabledListCacheClear = false
+    },
+    handleWindowSizeChange(index) {
+      let info = index == null ? this.windowSizeList[2] : this.windowSizeList[index]
+      setWindowSize(info.width, info.height)
+    },
+    refreshSetting(setting, version) {
+      this.setSetting(setting)
+      this.setSettingVersion(version)
+      if (setting.windowSizeId != null) this.handleWindowSizeChange(null, setting.windowSizeId)
+      for (let key of Object.keys(setting.network.proxy)) {
+        window.globalObj.proxy[key] = setting.network.proxy[key]
+      }
+      this.init()
+      this.handleLangChange(this.current_setting.langId)
+    },
+    handleLangChange(id) {
+      this.$i18n.locale = id
+      // this.$nextTick(() => this.initTOC())
+    },
+    async getMediaDevice() {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      let audioDevices = devices.filter(device => device.kind === 'audiooutput')
+      this.mediaDevices = audioDevices
+      // console.log(this.mediaDevices)
+    },
+    handleShowPact() {
+      window.globalObj.isShowPact = true
+    },
+    handleUpdateSetting(config) {
+      this.current_setting = JSON.parse(JSON.stringify(config))
+    },
+    initHotKeyConfig() {
+      let config = {}
+      for (const type of Object.keys(this.current_hot_key)) {
+        let typeInfo = this.current_hot_key[type]
+        let configInfo = config[type] = {}
+        for (const key of Object.keys(typeInfo.keys)) {
+          let info = typeInfo.keys[key]
+          if (info.name == null) continue
+          configInfo[info.name] = {
+            key,
+            info,
+          }
+        }
+      }
+      this.hotKeyConfig = config
+    },
+    async handleHotKeyFocus(event, info, type) {
+      await rendererInvoke(NAMES.hotKey.enable, false)
+      window.isEditingHotKey = true
+      this.isEditHotKey = true
+      let config = this.hotKeyConfig[type][info.name]
+      newHotKey = config && config.key
+      hotKeyTargetInput = event.target
+      event.target.value = this.$t('view.setting.hot_key_tip_input')
+    },
+    async handleHotKeyBlur(event, info, type) {
+      await rendererInvoke(NAMES.hotKey.enable, true)
+      window.isEditingHotKey = false
+      this.isEditHotKey = false
+      hotKeyTargetInput = null
+      let config = this.hotKeyConfig[type][info.name]
+      let originKey
+      if (newHotKey) {
+        if (type == 'global' && newHotKey && this.current_hot_key.global.enable) {
+          try {
+            await rendererInvoke(NAMES.hotKey.set_config, {
+              action: 'register',
+              data: {
+                key: newHotKey,
+                info,
+              },
+            })
+          } catch (error) {
+            console.log(error)
+            return
+          }
+        }
+      }
+      if (config) {
+        if (config.key == newHotKey) return
+        originKey = config.key
+        delete this.current_hot_key[type].keys[config.key]
+      } else if (!newHotKey) return
+
+      if (newHotKey) {
+        for (const tempType of Object.keys(this.current_hot_key)) {
+          if (tempType == type) continue
+          config = this.current_hot_key[tempType].keys[newHotKey]
+          if (config) {
+            console.log(newHotKey, info, config, info.name, config.name)
+            delete this.current_hot_key[tempType].keys[newHotKey]
+            break
+          }
+        }
+        this.current_hot_key[type].keys[newHotKey] = info
+      }
+
+      this.initHotKeyConfig()
+      // console.log(this.current_hot_key.global.keys)
+      if (originKey && this.current_hot_key.global.enable) {
+        try {
+          await rendererInvoke(NAMES.hotKey.set_config, {
+            action: 'unregister',
+            data: originKey,
+          })
+        } catch (error) {
+          console.log(error)
+        }
+      }
+      await this.handleHotKeySaveConfig()
+      await this.getHotKeyStatus()
+    },
+    formatHotKeyName(name) {
+      if (name.includes('arrow')) {
+        name = name.replace(/arrow(left|right|up|down)/, s => {
+          switch (s) {
+            case 'arrowleft': return '←'
+            case 'arrowright': return '→'
+            case 'arrowup': return '↑'
+            case 'arrowdown': return '↓'
+          }
+        })
+      }
+      if (name.includes('mod')) name = name.replace('mod', isMac ? 'Command' : 'Ctrl')
+      name = name.replace(/(\+|^)[a-z]/g, l => l.toUpperCase())
+      if (name.length > 1) name = name.replace(/\+/g, ' + ')
+      return name
+    },
+    handleKeyDown({ event, keys, key, type }) {
+      // if (!event || event.repeat) return
+      if (!event || event.repeat || type == 'up' || !this.isEditHotKey) return
+      event.preventDefault()
+      // console.log(event, key)
+      switch (key) {
+        case 'delete':
+        case 'backspace':
+          key = ''
+          break
+      }
+      hotKeyTargetInput.value = this.formatHotKeyName(key)
+      // console.log(keys, key, type)
+      newHotKey = key
+    },
+    handleUpdateHotKeyConfig(config) {
+      // console.log(config)
+      for (const type of Object.keys(config)) {
+        this.current_hot_key[type] = config[type]
+      }
+    },
+    async handleHotKeySaveConfig() {
+      // console.log(this.current_hot_key)
+      window.appHotKeyConfig = this.current_hot_key
+      await rendererInvoke(NAMES.hotKey.set_config, {
+        action: 'config',
+        data: this.current_hot_key,
+        source: eventsNameMainWindow.name,
+      })
+    },
+    async handleEnableHotKey() {
+      await rendererInvoke(NAMES.hotKey.set_config, {
+        action: 'enable',
+        data: this.current_hot_key.global.enable,
+        source: eventsNameMainWindow.name,
+      })
+      await this.handleHotKeySaveConfig()
+      await this.getHotKeyStatus()
+    },
+    getHotKeyStatus() {
+      return rendererInvoke(NAMES.hotKey.status).then(status => {
+        // console.log(status)
+        this.hotKeyStatus = status
+        return status
+      })
+    },
+    handleTrayShowChange(isShow) {
+      this.current_setting.tray.isToTray = isShow
+    },
+    async handleSaveFile(path, data) {
+      if (!path.endsWith('.lxmc')) path += '.lxmc'
+      fs.writeFile(path, await this.gzip(data), 'binary', err => {
+        console.log(err)
+      })
+    },
+    async handleReadFile(path) {
+      let isJSON = path.endsWith('.json')
+      let data = await fs.promises.readFile(path, isJSON ? 'utf8' : 'binary')
+      if (!data || isJSON) return data
+      data = await this.gunzip(Buffer.from(data, 'binary'))
+      return data.toString('utf8')
+    },
+    gzip(str) {
+      return new Promise((resolve, reject) => {
+        gzip(str, (err, result) => {
+          if (err) return reject(err)
+          resolve(result)
+        })
+      })
+    },
+    gunzip(buf) {
+      return new Promise((resolve, reject) => {
+        gunzip(buf, (err, result) => {
+          if (err) return reject(err)
+          resolve(result.toString())
+        })
+      })
+    },
+    getApiStatus() {
+      let status
+      if (window.globalObj.userApi.status) status = this.$t('view.setting.basic_source_status_success')
+      else if (window.globalObj.userApi.message == 'initing') status = this.$t('view.setting.basic_source_status_initing')
+      else status = `${this.$t('view.setting.basic_source_status_failed')} - ${window.globalObj.userApi.message}`
+
+      return status
     },
   },
 }
@@ -509,12 +1123,61 @@ export default {
 <style lang="less" module>
 @import '../assets/styles/layout.less';
 
+.main {
+  display: flex;
+  flex-flow: row nowrap;
+  height: 100%;
+  // border-top: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+// .toc {
+//   flex: 0 0 15%;
+//   overflow-y: scroll;
+//   padding: 10px;
+//   a {
+//     text-decoration: none;
+//     display: block;
+//     line-height: 1.5;
+//     .mixin-ellipsis-1;
+//   }
+// }
+// .tocH2 {
+//   font-size: 14px;
+//   a {
+//     color: @color-theme;
+//   }
+//   &.active {
+//     a {
+//       color: @color-theme;
+//     }
+//   }
+// }
+// .tocH3 {
+//   font-size: 13px;
+//   opacity: .8;
+// }
+
+// .tocList {
+//   .tocList {
+//     padding-left: 15px;
+//   }
+// }
+// .tocListItem {
+//   +.tocListItem {
+//     padding-top: 10px;
+//   }
+// }
+// .tocSubListItem {
+//   padding-top: 10px;
+// }
+
 .setting {
   padding: 0 15px 30px 15px;
   font-size: 14px;
   box-sizing: border-box;
   overflow-y: auto;
   height: 100%;
+  position: relative;
 
   dt {
     border-left: 5px solid @color-theme;
@@ -539,7 +1202,8 @@ export default {
     margin: 25px 0 15px;
   }
   p {
-    padding: 5px 0;
+    padding: 3px 0;
+    line-height: 1.3;
     .btn {
       + .btn {
         margin-left: 10px;
@@ -549,12 +1213,29 @@ export default {
 
 }
 
+.btn-content {
+  display: inline-block;
+  transition: @transition-theme;
+  transition-property: opacity, transform;
+  opacity: 1;
+  transform: scale(1);
+
+  &.hide {
+    opacity: 0;
+    transform: scale(0);
+  }
+}
+
 .gap-left {
   + .gap-left {
     margin-left: 20px;
   }
 }
 .gap-top {
+  &.top {
+    margin-top: 25px;
+  }
+
   + .gap-top {
     margin-top: 10px;
   }
@@ -574,7 +1255,8 @@ export default {
     // color: @color-theme;
     margin-right: 30px;
     transition: color .3s ease;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
+    width: 56px;
 
     &:last-child {
       margin-right: 0;
@@ -594,11 +1276,18 @@ export default {
         content: ' ';
         width: 100%;
         height: 100%;
-        border-radius: 4px;
+        border-radius: @radius-border;
         background-position: center;
-        background-size: auto 100%;
+        background-size: cover;
         background-repeat: no-repeat;
       }
+    }
+
+    label {
+      width: 100%;
+      text-align: center;
+      height: 1.2em;
+      .mixin-ellipsis-1;
     }
 
     each(@themes, {
@@ -614,12 +1303,91 @@ export default {
   }
 }
 
+.hotKeyContainer {
+  display: flex;
+  flex-flow: row wrap;
+  // margin-top: -15px;
+  margin-bottom: 15px;
+  transition: opacity @transition-theme;
+}
+.hotKeyItem {
+  width: 30%;
+  padding-right: 35px;
+  margin-top: 15px;
+  box-sizing: border-box;
+}
+.hotKeyItemTitle {
+  .mixin-ellipsis-1;
+  padding-bottom: 5px;
+  color: @color-theme_2-font-label;
+  font-size: 12px;
+}
+.hotKeyItemInput {
+  width: 100%;
+  box-sizing: border-box;
+  // font-family: monospace;
+  &:focus {
+    background-color: @color-theme_2-active;
+    text-decoration: none;
+  }
+  &::placeholder {
+    color: rgba(197, 197, 197, 0.7)!important;
+  }
+}
+.hotKeyFailed {
+  text-decoration: line-through;
+}
+
 .save-path {
   font-size: 12px;
 }
 
+.del-line {
+  position: relative;
+  &:before {
+    display: block;
+    height: 1px;
+    position: absolute;
+    width: 110%;
+    content: ' ';
+    left: 0;
+    background-color: #000;
+    transform: rotate(-24deg);
+    transform-origin: 0;
+    top: 83%;
+    z-index: 1;
+  }
+  &:after {
+    display: block;
+    height: 1px;
+    position: absolute;
+    width: 110%;
+    content: ' ';
+    left: 0;
+    background-color: #000;
+    transform: rotate(23deg);
+    transform-origin: 0px;
+    top: 2px;
+    z-index: 1;
+  }
+}
+
+// :global(dt):target, :global(h3):target {
+//   animation: highlight 1s ease;
+// }
+
+// @keyframes highlight {
+//   from { background: yellow; }
+//   to { background: transparent; }
+// }
+
 each(@themes, {
   :global(#container.@{value}) {
+    // .tocH2 {
+    //   a {
+    //     color: ~'@{color-@{value}-theme}';
+    //   }
+    // }
     .tbody {
       tr {
         &.active {
@@ -631,6 +1399,10 @@ each(@themes, {
       dt {
         border-left-color: ~'@{color-@{value}-theme}';
       }
+    }
+
+    .hotKeyItemTitle {
+      color: ~'@{color-@{value}-theme_2-font-label}';
     }
 
     .theme {

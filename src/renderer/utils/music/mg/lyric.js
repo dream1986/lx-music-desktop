@@ -2,7 +2,7 @@ import { httpFetch } from '../../request'
 
 export default {
   getLyric(songInfo, tryNum = 0) {
-    console.log(songInfo.copyrightId)
+    // console.log(songInfo.copyrightId)
     if (songInfo.lrcUrl) {
       let requestObj = httpFetch(songInfo.lrcUrl)
       requestObj.promise = requestObj.promise.then(({ body, statusCode }) => {
@@ -12,7 +12,10 @@ export default {
           requestObj.cancelHttp = tryRequestObj.cancelHttp.bind(tryRequestObj)
           return tryRequestObj.promise
         }
-        return body
+        return {
+          lyric: body,
+          tlyric: '',
+        }
       })
       return requestObj
     } else {
@@ -28,7 +31,10 @@ export default {
           requestObj.cancelHttp = tryRequestObj.cancelHttp.bind(tryRequestObj)
           return tryRequestObj.promise
         }
-        return body.lyric
+        return {
+          lyric: body.lyric,
+          tlyric: '',
+        }
       })
       return requestObj
     }

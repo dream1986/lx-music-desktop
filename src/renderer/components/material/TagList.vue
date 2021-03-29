@@ -5,15 +5,15 @@
       div(:class="$style.icon")
         svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 451.847 451.847' space='preserve')
           use(xlink:href='#icon-down')
-    div.scroll(:class="$style.list" @click.stop ref="dom_list")
-      div(:class="$style.tag" @click="handleClick(null)") 默认
+    div.scroll(:class="$style.list" :style="{ width: listWidth + 'PX' }" @click.stop ref="dom_list")
+      div(:class="$style.tag" @click="handleClick(null)") {{$t('material.tag_list.default')}}
       dl(v-for="type in list")
         dt(:class="$style.type") {{type.name}}
         dd(:class="$style.tag" v-for="tag in type.list" @click="handleClick(tag)") {{tag.name}}
 </template>
 
 <script>
-import { isChildren } from '../../utils'
+import { mapGetters } from 'vuex'
 export default {
   props: {
     list: {
@@ -22,9 +22,16 @@ export default {
         return []
       },
     },
+    listWidth: {
+      type: Number,
+      default: 645,
+    },
     value: {
       type: Object,
     },
+  },
+  computed: {
+    ...mapGetters(['setting']),
   },
   data() {
     return {
@@ -40,7 +47,7 @@ export default {
   methods: {
     handleHide(e) {
       // if (e && e.target.parentNode != this.$refs.dom_list && this.show) return this.show = false
-      if (e && (e.target == this.$refs.dom_btn || isChildren(this.$refs.dom_btn, e.target))) return
+      if (e && (e.target == this.$refs.dom_btn || this.$refs.dom_btn.contains(e.target))) return
       setTimeout(() => {
         this.show = false
       }, 50)
@@ -48,7 +55,7 @@ export default {
     handleClick(item) {
       if (!item) {
         item = {
-          name: '默认',
+          name: this.$t('material.tag_list.default'),
           id: null,
         }
       }
@@ -109,24 +116,24 @@ export default {
     margin-left: 7px;
     line-height: 0;
     svg {
-      width: 1em;
+      width: .9em;
       transition: transform .2s ease;
       transform: rotate(0);
     }
   }
 
   &:hover {
-    background-color: @color-theme_2-hover;
+    background-color: @color-btn-hover;
   }
   &:active {
-    background-color: @color-theme_2-active;
+    background-color: @color-btn-active;
   }
 }
 
 .list {
   position: absolute;
   top: 100%;
-  width: 646px;
+  width: 645px;
   left: 0;
   border-bottom: 2px solid @color-tab-border-bottom;
   border-right: 2px solid @color-tab-border-bottom;
@@ -154,10 +161,10 @@ export default {
     box-sizing: border-box;
 
     &:hover {
-      background-color: @color-theme_2-hover;
+      background-color: @color-btn-hover;
     }
     &:active {
-      background-color: @color-theme_2-active;
+      background-color: @color-btn-active;
     }
   }
 }
@@ -165,7 +172,7 @@ export default {
 .type {
   padding-top: 10px;
   padding-bottom: 3px;
-  color: #999;
+  color: @color-theme_2-font-label;
 }
 
 .tag {
@@ -177,10 +184,10 @@ export default {
   transition: background-color @transition-theme;
   cursor: pointer;
   &:hover {
-    background-color: @color-theme_2-hover;
+    background-color: @color-btn-hover;
   }
   &:active {
-    background-color: @color-theme_2-active;
+    background-color: @color-btn-active;
   }
 }
 
@@ -192,10 +199,10 @@ each(@themes, {
       // border-left-color: ~'@{color-@{value}-tab-border-bottom}';
       color: ~'@{color-@{value}-btn}';
       &:hover {
-        background-color: ~'@{color-@{value}-theme_2-hover}';
+        background-color: ~'@{color-@{value}-btn-hover}';
       }
       &:active {
-        background-color: ~'@{color-@{value}-theme_2-active}';
+        background-color: ~'@{color-@{value}-btn-active}';
       }
     }
 
@@ -208,10 +215,10 @@ each(@themes, {
         // color: ~'@{color-@{value}-btn}';
         background-color: ~'@{color-@{value}-btn-background}';
         &:hover {
-          background-color: ~'@{color-@{value}-theme_2-hover}';
+          background-color: ~'@{color-@{value}-btn-hover}';
         }
         &:active {
-          background-color: ~'@{color-@{value}-theme_2-active}';
+          background-color: ~'@{color-@{value}-btn-active}';
         }
       }
     }
@@ -219,11 +226,15 @@ each(@themes, {
     .tag {
       background-color: ~'@{color-@{value}-btn-background}';
       &:hover {
-        background-color: ~'@{color-@{value}-theme_2-hover}';
+        background-color: ~'@{color-@{value}-btn-hover}';
       }
       &:active {
-        background-color: ~'@{color-@{value}-theme_2-active}';
+        background-color: ~'@{color-@{value}-btn-active}';
       }
+    }
+
+    .type {
+      color: ~'@{color-@{value}-theme_2-font-label}';
     }
   }
 })

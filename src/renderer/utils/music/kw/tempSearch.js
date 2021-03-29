@@ -1,25 +1,27 @@
-import { httpGet, cancelHttp } from '../../request'
+import { httpFetch } from '../../request'
 import { decodeName } from '../../index'
+import { getToken, matchToken } from './util'
+
 
 export default {
   regExps: {
     relWord: /RELWORD=(.+)/,
   },
-  _musicTempSearchRequestObj: null,
-  _musicTempSearchPromiseCancelFn: null,
-  tempSearch(str) {
+  requestObj: null,
+  tempSearch(str, token) {
     this.cancelTempSearch()
-    return new Promise((resolve, reject) => {
-      this._musicTempSearchPromiseCancelFn = reject
-      this._musicTempSearchRequestObj = httpGet(`http://www.kuwo.cn/api/www/search/searchKey?key=${encodeURIComponent(str)}`, (err, resp, body) => {
-        this._musicTempSearchRequestObj = null
-        this._musicTempSearchPromiseCancelFn = null
-        if (err) {
-          console.log(err)
-          reject(err)
-        }
-        resolve(body)
-      })
+    this.requestObj = httpFetch(`http://www.kuwo.cn/api/www/search/searchKey?key=${encodeURIComponent(str)}`, {
+      headers: {
+        Referer: 'http://www.kuwo.cn/',
+        csrf: token,
+        cookie: 'kw_token=' + token,
+      },
+    })
+    return this.requestObj.promise.then(({ statusCode, body, headers }) => {
+      if (statusCode != 200) return Promise.reject(new Error('请求失败'))
+      window.kw_token.token = matchToken(headers)
+      if (body.code !== 200) return Promise.reject(new Error('请求失败'))
+      return body
     })
   },
   handleResult(rawData) {
@@ -29,12 +31,11 @@ export default {
     })
   },
   cancelTempSearch() {
-    if (this._musicTempSearchRequestObj != null) {
-      cancelHttp(this._musicTempSearchRequestObj)
-      this._musicTempSearchPromiseCancelFn(new Error('取消http请求'))
-    }
+    if (this.requestObj && this.requestObj.cancelHttp) this.requestObj.cancelHttp()
   },
-  search(str) {
-    return this.tempSearch(str).then(result => this.handleResult(result.data))
+  async search(str) {
+    let token = window.kw_token.token
+    if (!token) token = await getToken()
+    return this.tempSearch(str, token).then(result => this.handleResult(result.data))
   },
 }

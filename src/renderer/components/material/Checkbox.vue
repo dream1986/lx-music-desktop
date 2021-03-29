@@ -33,7 +33,9 @@ export default {
       type: Boolean,
       default: false,
     },
-    label: {},
+    label: {
+      type: String,
+    },
     disabled: {
       type: Boolean,
       default: false,
@@ -67,17 +69,25 @@ export default {
         } else {
           checked.splice(index, 1)
         }
-      } else if (typeof this.checked == 'string') {
-        checked = this.bool ? this.value : ''
-      } else if (typeof this.checked == 'boolean') {
+      } else {
         let bool = this.bool
-        if (this.indeterminate) {
-          bool = true
-          // this.$nextTick(() => {
-          this.bool = true
-          // })
+        switch (typeof this.checked) {
+          case 'boolean':
+            if (this.indeterminate) {
+              bool = true
+              this.$nextTick(() => {
+                this.bool = bool
+              })
+            }
+            checked = bool
+            break
+          case 'number':
+            checked = this.value
+            break
+          default:
+            checked = bool ? this.value : ''
+            break
         }
-        checked = bool
       }
       this.$emit('input', checked)
       this.$emit('change', checked)
@@ -88,14 +98,14 @@ export default {
         bool = value.includes(this.value)
       } else {
         switch (typeof value) {
-          case 'string':
-            bool = value === this.value
-            break
           case 'boolean':
             bool = value
             break
+          // case 'string':
+          // case 'number':
           default:
-            return
+            bool = value === this.value
+            break
         }
       }
 
@@ -112,7 +122,6 @@ export default {
 .checkbox {
   display: inline-block;
   // font-size: 56px;
-
 }
 .input {
   display: none;
@@ -149,6 +158,7 @@ export default {
   cursor: pointer;
   display: flex;
   color: @color-theme;
+  margin-top: .25em;
   // border: 1px solid #ccc;
   &:after {
     position: absolute;
@@ -159,13 +169,14 @@ export default {
     right: 0;
     border: 1px solid @color-theme_2-font-label;
     transition: border-color 0.2s ease;
-    border-radius: 15%;
+    border-radius: 2px;
   }
 }
 .icon {
   transition: 0.3s ease;
   transition-property: transform;
   transform: scale(0);
+  border-radius: 2px;
   // opacity: 0;
 }
 
@@ -173,6 +184,7 @@ export default {
   flex: auto;
   line-height: 1;
   margin-left: 5px;
+  line-height: 1.5;
   cursor: pointer;
 }
 

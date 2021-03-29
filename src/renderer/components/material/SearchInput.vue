@@ -1,24 +1,30 @@
 <template lang="pug">
-div(:class="[$style.search, focus ? $style.active : '', big ? $style.big : '', small ? $style.small : '']")
-  div(:class="$style.form")
-    input(:placeholder="placeholder" v-model.trim="text"
-          @focus="handleFocus" @blur="handleBlur" @input="$emit('input', text)"
-          @change="sendEvent('change')"
-          @keyup.enter="handleSearch")
-    button(type="button" @click="handleSearch")
-      slot
-        svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 30.239 30.239' space='preserve')
-          use(xlink:href='#icon-search')
-  //- transition(name="custom-classes-transition"
-  //-             enter-active-class="animated flipInX"
-  //-             leave-active-class="animated flipOutX")
-  div(v-if="list" :class="$style.list" :style="listStyle")
-    ul(ref="dom_list")
-      li(v-for="(item, index) in list" :key="item" @click="handleTemplistClick(index)")
-        span {{item}}
+div(:class="$style.container")
+  div(:class="[$style.search, focus ? $style.active : '', big ? $style.big : '', small ? $style.small : '']")
+    div(:class="$style.form")
+      input(:placeholder="placeholder" v-model.trim="text" ref="dom_input"
+            @focus="handleFocus" @blur="handleBlur" @input="$emit('input', text)"
+            @change="sendEvent('change')"
+            @keyup.enter="handleSearch"
+            @keyup.40.prevent="handleKeyDown"
+            @keyup.38.prevent="handleKeyUp"
+            @contextmenu="handleContextMenu")
+      button(type="button" @click="handleSearch")
+        slot
+          svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 30.239 30.239' space='preserve')
+            use(xlink:href='#icon-search')
+    //- transition(name="custom-classes-transition"
+    //-             enter-active-class="animated flipInX"
+    //-             leave-active-class="animated flipOutX")
+    div(v-if="list" :class="$style.list" :style="listStyle")
+      ul(ref="dom_list")
+        li(v-for="(item, index) in list" :key="item" :class="selectIndex === index ? $style.select : null" @mouseenter="selectIndex = index" @click="handleTemplistClick(index)")
+          span {{item}}
 </template>
 
 <script>
+import { clipboardReadText } from '../../utils'
+import { common as eventCommonNames } from '../../../common/hotKey'
 export default {
   props: {
     placeholder: {
@@ -49,7 +55,7 @@ export default {
     return {
       isShow: false,
       text: '',
-      index: null,
+      selectIndex: -1,
       focus: false,
       listStyle: {
         height: 0,
@@ -59,6 +65,7 @@ export default {
   watch: {
     list(n) {
       if (!this.visibleList) return
+      if (this.selectIndex > -1) this.selectIndex = -1
       this.$nextTick(() => {
         this.listStyle.height = this.$refs.dom_list.scrollHeight + 'px'
       })
@@ -70,8 +77,24 @@ export default {
       n ? this.showList() : this.hideList()
     },
   },
+  mounted() {
+    if (this.$store.getters.setting.search.isFocusSearchBox) this.handleFocusInput()
+    this.handleRegisterEvent('on')
+  },
+  beforeDestroy() {
+    this.handleRegisterEvent('off')
+  },
   methods: {
+    handleRegisterEvent(action) {
+      let eventHub = window.eventHub
+      let name = action == 'on' ? '$on' : '$off'
+      eventHub[name](eventCommonNames.focusSearchInput.action, this.handleFocusInput)
+    },
+    handleFocusInput() {
+      this.$refs.dom_input.focus()
+    },
     handleTemplistClick(index) {
+      console.log(index)
       this.sendEvent('listClick', index)
     },
     handleFocus() {
@@ -79,12 +102,15 @@ export default {
       this.sendEvent('focus')
     },
     handleBlur() {
-      this.focus = false
-      this.sendEvent('blur')
+      setTimeout(() => {
+        this.focus = false
+        this.sendEvent('blur')
+      }, 80)
     },
     handleSearch() {
       this.hideList()
-      this.sendEvent('submit')
+      if (this.selectIndex < 0) return this.sendEvent('submit')
+      this.sendEvent('listClick', this.selectIndex)
     },
     showList() {
       this.isShow = true
@@ -93,12 +119,30 @@ export default {
     hideList() {
       this.isShow = false
       this.listStyle.height = 0
+      this.$nextTick(() => {
+        this.selectIndex = -1
+      })
     },
     sendEvent(action, data) {
       this.$emit('event', {
         action,
         data,
       })
+    },
+    handleKeyDown() {
+      this.selectIndex = this.selectIndex + 1 < this.list.length ? this.selectIndex + 1 : 0
+    },
+    handleKeyUp() {
+      this.selectIndex = this.selectIndex - 1 < -1 ? this.list.length - 1 : this.selectIndex - 1
+    },
+    handleContextMenu() {
+      let str = clipboardReadText()
+      str = str.trim()
+      str = str.replace(/\t|\r\n|\n|\r/g, ' ')
+      str = str.replace(/\s+/g, ' ')
+      let dom_input = this.$refs.dom_input
+      this.text = `${this.text.substring(0, dom_input.selectionStart)}${str}${this.text.substring(dom_input.selectionEnd, this.text.length)}`
+      this.$emit('input', this.text)
     },
   },
 }
@@ -108,12 +152,20 @@ export default {
 <style lang="less" module>
 @import '../../assets/styles/layout.less';
 
+.container {
+  position: relative;
+  width: 35%;
+  height: @height-toolbar * 0.52;
+  -webkit-app-region: no-drag;
+}
+
 .search {
-  border-radius: 3px;
+  position: absolute;
+  width: 100%;
+  border-radius: @form-radius;
   transition: box-shadow .4s ease, background-color @transition-theme;
   display: flex;
   flex-flow: column nowrap;
-  width: 240px;
   background-color: @color-search-form-background;
 
   &.active {
@@ -121,6 +173,7 @@ export default {
     .form {
       input {
         border-bottom-left-radius: 0;
+
       }
       button {
         border-bottom-right-radius: 0;
@@ -129,7 +182,7 @@ export default {
   }
   .form {
     display: flex;
-    height: @height-toolbar / 2;
+    height: @height-toolbar * 0.52;
     position: relative;
     input {
       flex: auto;
@@ -145,6 +198,8 @@ export default {
       // height: @height-toolbar * .7;
       padding: 0 5px;
       overflow: hidden;
+      font-size: 13.5px;
+      line-height: @height-toolbar * 0.52 + 5px;
       &::placeholder {
         color: @color-btn;
       }
@@ -159,7 +214,7 @@ export default {
       border-bottom-right-radius: 3px;
       cursor: pointer;
       height: 100%;
-      padding: 5px 7px;
+      padding: 6px 7px;
       color: @color-btn;
       transition: background-color .2s ease;
 
@@ -187,7 +242,7 @@ export default {
         .mixin-ellipsis-2;
       }
 
-      &:hover {
+      &.select {
         background-color: @color-search-list-hover;
       }
       &:last-child {
@@ -199,7 +254,7 @@ export default {
 }
 
 .big {
-  width: 500px;
+  width: 100%;
   // input {
   //   line-height: 30px;
   // }
@@ -239,7 +294,7 @@ each(@themes, {
       }
       .list {
         li {
-          &:hover {
+          &.select {
             background-color: ~'@{color-@{value}-search-list-hover}';
           }
         }

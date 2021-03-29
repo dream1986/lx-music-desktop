@@ -1,32 +1,32 @@
 <template lang="pug">
 div(:class="$style.btns")
-  button(type="button" v-if="playBtn" title="播放" @click.stop="handleClick('play')")
-    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 287.386 287.386' space='preserve')
+  button(type="button" v-if="playBtn" @contextmenu.capture.stop :tips="$t('material.list_buttons.play')" @click.stop="handleClick('play')")
+    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 287.386 287.386' space='preserve' v-once)
       use(xlink:href='#icon-testPlay')
-  button(type="button" v-if="listAddBtn" title="添加到..." @click.stop="handleClick('listAdd')")
-    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 42 42' space='preserve')
+  button(type="button" v-if="listAddBtn" @contextmenu.capture.stop :tips="$t('material.list_buttons.add_to')" @click.stop="handleClick('listAdd')")
+    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 42 42' space='preserve' v-once)
       use(xlink:href='#icon-addTo')
-  button(type="button" v-if="downloadBtn" title="下载" @click.stop="handleClick('download')")
-    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 475.078 475.077' space='preserve')
+  button(type="button" v-if="downloadBtn && setting.download.enable" @contextmenu.capture.stop :tips="$t('material.list_buttons.download')" @click.stop="handleClick('download')")
+    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 475.078 475.077' space='preserve' v-once)
       use(xlink:href='#icon-download')
-  button(type="button" title="添加" v-if="userInfo" @click.stop="handleClick('add')")
+  //- button(type="button" :tips="$t('material.list_buttons.add')" v-if="userInfo" @click.stop="handleClick('add')")
     svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 42 42' space='preserve')
       use(xlink:href='#icon-addTo')
-  button(type="button" v-if="startBtn" title="开始" @click.stop="handleClick('start')")
-    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 170 170' space='preserve')
+  button(type="button" v-if="startBtn" @contextmenu.capture.stop :tips="$t('material.list_buttons.start')" @click.stop="handleClick('start')")
+    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 170 170' space='preserve' v-once)
       use(xlink:href='#icon-play')
-  button(type="button" v-if="pauseBtn" title="暂停" @click.stop="handleClick('pause')")
-    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 277.338 277.338' space='preserve')
+  button(type="button" v-if="pauseBtn" @contextmenu.capture.stop :tips="$t('material.list_buttons.pause')" @click.stop="handleClick('pause')")
+    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 277.338 277.338' space='preserve' v-once)
       use(xlink:href='#icon-pause')
-  button(type="button" v-if="fileBtn" title="定位文件" @click.stop="handleClick('file')")
-    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='-61 0 512 512' space='preserve')
+  button(type="button" v-if="fileBtn" @contextmenu.capture.stop :tips="$t('material.list_buttons.file')" @click.stop="handleClick('file')")
+    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='-61 0 512 512' space='preserve' v-once)
       use(xlink:href='#icon-musicFile')
-  button(type="button" v-if="removeBtn" title="移除" @click.stop="handleClick('remove')")
-    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 212.982 212.982' space='preserve')
-      use(xlink:href='#icon-delete')
-  button(type="button" v-if="searchBtn" title="搜索" @click.stop="handleClick('search')")
-    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 30.239 30.239' space='preserve')
+  button(type="button" v-if="searchBtn" @contextmenu.capture.stop :tips="$t('material.list_buttons.search')" @click.stop="handleClick('search')")
+    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 30.239 30.239' space='preserve' v-once)
       use(xlink:href='#icon-search')
+  button(type="button" v-if="removeBtn" :tips="$t('material.list_buttons.remove')" @click.stop="handleClick('remove')")
+    svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 212.982 212.982' space='preserve' v-once)
+      use(xlink:href='#icon-delete')
 
 </template>
 
@@ -49,7 +49,7 @@ export default {
     },
     removeBtn: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     downloadBtn: {
       type: Boolean,
@@ -73,7 +73,7 @@ export default {
     },
   },
   computed: {
-    ...mapGetters(['userInfo']),
+    ...mapGetters(['setting']),
   },
   methods: {
     handleClick(action) {
@@ -88,10 +88,12 @@ export default {
 @import '../../assets/styles/layout.less';
 
 .btns {
+  line-height: 1;
+
   button {
     background-color: transparent;
     border: none;
-    border-radius: 3px;
+    border-radius: @form-radius;
     margin-right: 5px;
     cursor: pointer;
     padding: 4px 7px;
@@ -104,7 +106,7 @@ export default {
     }
 
     svg {
-      height: 1.2em;
+      height: 16px;
     }
 
     &:hover {

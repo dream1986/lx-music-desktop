@@ -2,22 +2,29 @@ import leaderboard from './leaderboard'
 import lyric from './lyric'
 import songList from './songList'
 import musicSearch from './musicSearch'
-import api_source from '../api-source'
+import { apis } from '../api-source'
+import hotSearch from './hotSearch'
+import comment from './comment'
 
 const tx = {
   leaderboard,
   songList,
   musicSearch,
+  hotSearch,
+  comment,
 
   getMusicUrl(songInfo, type) {
-    return api_source('tx').getMusicUrl(songInfo, type)
+    return apis('tx').getMusicUrl(songInfo, type)
   },
   getLyric(songInfo) {
     // let singer = songInfo.singer.indexOf('、') > -1 ? songInfo.singer.split('、')[0] : songInfo.singer
     return lyric.getLyric(songInfo.songmid)
   },
   getPic(songInfo) {
-    return api_source('tx').getPic(songInfo)
+    return apis('tx').getPic(songInfo)
+  },
+  getMusicDetailPageUrl(songInfo) {
+    return `https://y.qq.com/n/yqq/song/${songInfo.songmid}.html`
   },
 }
 

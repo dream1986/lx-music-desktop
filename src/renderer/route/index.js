@@ -4,14 +4,13 @@ import Router from 'vue-router'
 import paths from './paths'
 
 
-function route(path, view, name, meta) {
+function route(path, view, name, meta, props) {
   return {
     name: name || view,
     path,
     meta,
-    component: (resovle) => import(
-      `../views/${view}.vue`
-    ).then(resovle),
+    props,
+    component: (resovle) => import(`../views/${view}.vue`).then(resovle),
   }
 }
 
@@ -19,7 +18,7 @@ Vue.use(Router)
 
 const router = new Router({
   mode: 'hash',
-  routes: paths.map(path => route(path.path, path.view, path.name, path.meta)).concat([
+  routes: paths.map(path => route(path.path, path.view, path.name, path.meta, path.props)).concat([
     { path: '*', redirect: '/search' },
   ]),
   linkActiveClass: 'active-link',

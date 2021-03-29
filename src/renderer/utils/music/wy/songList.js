@@ -6,12 +6,14 @@
 import { weapi, linuxapi } from './utils/crypto'
 import { httpFetch } from '../../request'
 import { formatPlayTime, sizeFormate } from '../../index'
+import musicDetailApi from './musicDetail'
 
 export default {
   _requestObj_tags: null,
   _requestObj_hotTags: null,
   _requestObj_list: null,
   _requestObj_listDetail: null,
+  _requestObj_listDetailLink: null,
   limit_list: 30,
   limit_song: 100000,
   successCode: 200,
@@ -25,6 +27,9 @@ export default {
       id: 'new',
     },
   ],
+  regExps: {
+    listDetailLink: /^.+(?:\?|&)id=(\d+)(?:&.*$|#.*$|$)/,
+  },
   /**
    * 格式化播放数量
    * @param {*} num
@@ -42,9 +47,27 @@ export default {
     return arr.join('、')
   },
 
-  getListDetail(id, page, tryNum = 0) { // 获取歌曲列表内的音乐
+  async handleParseId(link, retryNum = 0) {
+    if (this._requestObj_listDetailLink) this._requestObj_listDetailLink.cancelHttp()
+    if (retryNum > 2) return Promise.reject(new Error('link try max num'))
+
+    this._requestObj_listDetailLink = httpFetch(link)
+    const { headers: { location }, statusCode } = await this._requestObj_listDetailLink.promise
+    // console.log(headers)
+    if (statusCode > 400) return this.handleParseId(link, ++retryNum)
+    return location == null ? link : location
+  },
+
+  async getListDetail(id, page, tryNum = 0) { // 获取歌曲列表内的音乐
     if (this._requestObj_listDetail) this._requestObj_listDetail.cancelHttp()
     if (tryNum > 2) return Promise.reject(new Error('try max num'))
+
+    if ((/[?&:/]/.test(id))) {
+      if (!this.regExps.listDetailLink.test(id)) id = await this.handleParseId(id)
+      // console.log(id)
+      id = id.replace(this.regExps.listDetailLink, '$1')
+    }
+
     this._requestObj_listDetail = httpFetch('https://music.163.com/api/linux/forward', {
       method: 'post',
       'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
@@ -58,23 +81,37 @@ export default {
         },
       }),
     })
-    return this._requestObj_listDetail.promise.then(({ body }) => {
-      if (body.code !== this.successCode) return this.getListDetail(id, page, ++tryNum)
-      return {
-        list: this.filterListDetail(body),
-        page,
-        limit: this.limit_song,
-        total: body.playlist.tracks.length,
-        source: 'wy',
-        info: {
-          play_count: this.formatPlayCount(body.playlist.playCount),
-          name: body.playlist.name,
-          img: body.playlist.coverImgUrl,
-          desc: body.playlist.description,
-          author: body.playlist.creator.nickname,
-        },
+    const { statusCode, body } = await this._requestObj_listDetail.promise
+    if (statusCode !== 200 || body.code !== this.successCode) return this.getListDetail(id, page, ++tryNum)
+    let limit = 1000
+    let rangeStart = (page - 1) * limit
+    // console.log(body)
+    let musicDetail
+    try {
+      musicDetail = await musicDetailApi.getList(body.playlist.trackIds.slice(rangeStart, limit * page).map(trackId => trackId.id))
+    } catch (err) {
+      console.log(err)
+      if (err.message == 'try max num') {
+        throw err
+      } else {
+        return this.getListDetail(id, page, ++tryNum)
       }
-    })
+    }
+    // console.log(musicDetail)
+    return {
+      list: musicDetail.list,
+      page,
+      limit,
+      total: body.playlist.trackIds.length,
+      source: 'wy',
+      info: {
+        play_count: this.formatPlayCount(body.playlist.playCount),
+        name: body.playlist.name,
+        img: body.playlist.coverImgUrl,
+        desc: body.playlist.description,
+        author: body.playlist.creator.nickname,
+      },
+    }
   },
   filterListDetail({ playlist: { tracks }, privileges }) {
     // console.log(tracks, privileges)
@@ -124,6 +161,7 @@ export default {
         songmid: item.id,
         img: item.al.picUrl,
         lrc: null,
+        otherSource: null,
         types,
         _types,
         typeUrl: {},

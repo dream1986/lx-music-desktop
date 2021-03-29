@@ -1,21 +1,28 @@
 <template lang="pug">
-  div(:class="$style.toolbar")
+  div(:class="[$style.toolbar, setting.controlBtnPosition == 'left' ? $style.controlBtnLeft : $style.controlBtnRight]")
     //- img(v-if="icon")
     //- h1 {{title}}
     material-search-input(:class="$style.input"
       @event="handleEvent" :list="tipList" :visibleList="visibleList"
       v-model="searchText")
-    div(:class="$style.control")
-      button(type="button" :class="$style.min" title="最小化" @click="min")
+
+    div(:class="$style.logo" v-if="setting.controlBtnPosition == 'left'") L X
+    div(:class="$style.control" v-else)
+      button(type="button" :class="$style.min" :tips="$t('core.toolbar.min')" @click="min")
+        svg(:class="$style.icon" version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' width='100%' viewBox='0 0 24 24' space='preserve')
+          use(xlink:href='#icon-window-minimize')
+
       //- button(type="button" :class="$style.max" @click="max")
-      button(type="button" :class="$style.close" title="关闭" @click="close")
+      button(type="button" :class="$style.close" :tips="$t('core.toolbar.close')" @click="close")
+        svg(:class="$style.icon" version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' width='100%' viewBox='0 0 24 24' space='preserve')
+          use(xlink:href='#icon-window-close')
 </template>
 
 <script>
-import { rendererSend } from 'common/icp'
-import { mapGetters } from 'vuex'
+import { mapGetters, mapMutations } from 'vuex'
 import music from '../../utils/music'
 import { debounce } from '../../utils'
+import { base as eventBaseName } from '../../event/names'
 export default {
   data() {
     return {
@@ -23,6 +30,7 @@ export default {
       visibleList: false,
       tipList: [],
       tipSearch: null,
+      isFocused: false,
     }
   },
   computed: {
@@ -33,15 +41,21 @@ export default {
     source() {
       return this.setting.search.tempSearchSource
     },
-    isAutoClearInput() {
+    isAutoClearSearchInput() {
       return this.setting.odc.isAutoClearSearchInput
+    },
+    isAutoClearSearchList() {
+      return this.setting.odc.isAutoClearSearchList
     },
   },
   watch: {
     route(n) {
-      if (this.isAutoClearInput && n.name != 'search' && this.searchText) this.searchText = ''
+      if (n.name != 'search') {
+        if (this.isAutoClearSearchInput && this.searchText) this.searchText = ''
+        if (this.isAutoClearSearchList) this.clearSearchList()
+      }
     },
-    'storeSearchText'(n) {
+    storeSearchText(n) {
       if (n !== this.searchText) this.searchText = n
     },
     searchText(n) {
@@ -61,13 +75,18 @@ export default {
     }, 50)
   },
   methods: {
+    ...mapMutations('search', {
+      clearSearchList: 'clearList',
+    }),
     handleEvent({ action, data }) {
       switch (action) {
         case 'focus':
+          this.isFocused = true
           if (!this.visibleList) this.visibleList = true
           if (this.searchText) this.handleTipSearch()
           break
         case 'blur':
+          this.isFocused = false
           setTimeout(() => {
             if (this.visibleList) this.visibleList = false
           }, 50)
@@ -84,7 +103,7 @@ export default {
     },
 
     handleTipSearch() {
-      if (!this.visibleList) this.visibleList = true
+      if (!this.visibleList && this.isFocused) this.visibleList = true
       this.tipSearch()
     },
 
@@ -101,13 +120,13 @@ export default {
     },
 
     min() {
-      rendererSend('min')
+      window.eventHub.$emit(eventBaseName.min)
     },
     max() {
-      rendererSend('max')
+      window.eventHub.$emit(eventBaseName.max)
     },
     close() {
-      rendererSend('close')
+      window.eventHub.$emit(eventBaseName.close)
     },
   },
 }
@@ -117,115 +136,107 @@ export default {
 <style lang="less" module>
 @import '../../assets/styles/layout.less';
 
+@control-btn-width: @height-toolbar * .26;
+
 .toolbar {
   display: flex;
   height: @height-toolbar;
-  justify-content: flex-end;
   align-items: center;
+  justify-content: space-between;
   padding-left: 15px;
   -webkit-app-region: drag;
-  z-index: 1;
-  position: relative;
-}
-.input {
-  -webkit-app-region: no-drag;
-  position: absolute;
-  left: 15px;
-  top: 13px;
+  z-index: 2;
+
+  &.controlBtnLeft {
+    .control {
+      display: none;
+    }
+  }
+  &.controlBtnRight {
+    justify-content: space-between;
+  }
 }
 
-// img {
-//   flex: none;
-//   height: 100%;
-// }
-
-// h1 {
-//   text-align: center;
-//   padding: 8px;
-//   flex: auto;
-//   -webkit-app-region: drag;
-//   -webkit-user-select: none;
-// }
+.logo {
+  box-sizing: border-box;
+  padding: 0 @height-toolbar * .4;
+  height: @height-toolbar;
+  color: @color-theme;
+  flex: none;
+  text-align: center;
+  line-height: @height-toolbar;
+  font-weight: bold;
+  // -webkit-app-region: no-drag;
+}
 
 .control {
   display: flex;
+  align-items: center;
   height: 100%;
+  left: 15px;
   -webkit-app-region: no-drag;
+  padding: 0 @control-btn-width * 1.5;
   &:hover {
-    button:before {
+    .icon {
       opacity: 1;
     }
   }
 
   button {
+    display: flex;
     position: relative;
-    width: @height-toolbar;
+    width: @control-btn-width;
+    height: @control-btn-width;
     background: none;
     border: none;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     outline: none;
-    padding: 0;
+    padding: 1px;
     cursor: pointer;
+    border-radius: 50%;
+    color: @color-theme_2;
 
-    &:after {
-      content: ' ';
-      display: block;
-      border-radius: 50%;
-      width: 14px;
-      height: 14px;
-      transition: background-color 0.2s ease-in-out;
+    + button {
+      margin-left: @control-btn-width * 1.2;
     }
 
-    &:before {
-      display: block;
-      position: absolute;
-      opacity: 0;
-      transition: opacity @transition-theme;
-    }
-
-    &.min:after {
+    &.min {
       background-color: @color-minBtn;
     }
-    &.max:after {
+    &.max {
       background-color: @color-maxBtn;
     }
-    &.close:after {
+    &.close {
       background-color: @color-closeBtn;
     }
+  }
+}
 
-    &.min:hover:after {
-      background-color: lighten(@color-minBtn, 10%);
-      opacity: 1;
+.icon {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+
+each(@themes, {
+  :global(#container.@{value}) {
+    .control {
+      button {
+        color: ~'@{color-@{value}-theme_2}';
+
+        &.min {
+          background-color: ~'@{color-@{value}-minBtn}';
+        }
+        &.max {
+          background-color: ~'@{color-@{value}-maxBtn}';
+        }
+        &.close {
+          background-color: ~'@{color-@{value}-closeBtn}';
+        }
+      }
     }
-    &.max:hover:after {
-      background-color: lighten(@color-maxBtn, 10%);
-    }
-    &.close:hover:after {
-      background-color: lighten(@color-closeBtn, 10%);
+    .logo {
+      color: ~'@{color-@{value}-theme}';
     }
   }
-}
-.min {
-  &:before {
-    content: ' ';
-    width: 8px;
-    height: 2px;
-    left: @height-toolbar / 2 - 4;
-    top: @height-toolbar / 2 - 1;
-    background-color: #fff;
-  }
-}
-.close {
-  &:before {
-    content: '×';
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 14px;
-    line-height: 1;
-    color: #fff;
-  }
-}
+})
 </style>

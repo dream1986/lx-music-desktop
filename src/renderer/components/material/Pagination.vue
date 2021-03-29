@@ -6,20 +6,20 @@ div(:class="$style.pagination" v-if="allPage > 1")
         svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 451.846 451.847' space='preserve')
           use(xlink:href='#icon-left')
     li(v-else)
-      button(type="button" @click="handleClick(page - 1)" title="上一页")
+      button(type="button" @click="handleClick(page - 1)" :tips="$t('material.pagination.prev')")
         svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 451.846 451.847' space='preserve')
           use(xlink:href='#icon-left')
     li(v-if="allPage > btnLength && page > pageEvg+1" :class="$style.first")
-      button(type="button" @click="handleClick(1)" title="第 1 页")
+      button(type="button" @click="handleClick(1)" :tips="$t('material.pagination.page', { num: 1 })")
         svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 451.846 451.847' space='preserve')
           use(xlink:href='#icon-first')
 
     li(v-for="(p, index) in pages" :key="index" :class="{[$style.active] : p == page}")
       span(v-if="p === page" v-text="page")
-      button(v-else type="button" @click="handleClick(p)" v-text="p" :title="`第 ${p} 页`")
+      button(v-else type="button" @click="handleClick(p)" v-text="p" :tips="$t('material.pagination.page', { num: p })")
 
     li(v-if="allPage > btnLength && allPage - page > pageEvg" :class="$style.last")
-      button(type="button" @click="handleClick(allPage)" :title="`第 ${allPage} 页`")
+      button(type="button" @click="handleClick(allPage)" :tips="$t('material.pagination.page', { num: allPage })")
         svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 451.846 451.847' space='preserve')
           use(xlink:href='#icon-last')
 
@@ -29,7 +29,7 @@ div(:class="$style.pagination" v-if="allPage > 1")
         svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 451.846 451.847' space='preserve')
           use(xlink:href='#icon-right')
     li(v-else)
-      button(type="button" @click="handleClick(page + 1)" title="下一页")
+      button(type="button" @click="handleClick(page + 1)" :tips="$t('material.pagination.next')")
         svg(version='1.1' xmlns='http://www.w3.org/2000/svg' xlink='http://www.w3.org/1999/xlink' height='100%' viewBox='0 0 451.846 451.847' space='preserve')
           use(xlink:href='#icon-right')
 
@@ -56,6 +56,10 @@ export default {
       type: Number,
       default: 7,
     },
+    maxPage: {
+      type: Number,
+      default: null,
+    },
   },
   data() {
     return {
@@ -65,7 +69,7 @@ export default {
   computed: {
     ...mapGetters(['userInfo']),
     allPage() {
-      return Math.ceil(this.count / this.limit) || 1
+      return this.maxPage == null ? Math.ceil(this.count / this.limit) || 1 : this.maxPage
     },
     pageEvg() {
       return Math.floor(this.btnLength / 2)
@@ -118,7 +122,7 @@ export default {
   display: inline-block;
   background-color: @color-pagination-background;
   // border-top-left-radius: 8px;
-  border-radius: 4px;
+  border-radius: @radius-border;
   ul {
     display: flex;
     flex-flow: row nowrap;
@@ -170,15 +174,15 @@ export default {
       }
       &:first-child {
         span, button {
-          border-top-left-radius: 4px;
-          border-bottom-left-radius: 4px;
+          border-top-left-radius: @radius-border;
+          border-bottom-left-radius: @radius-border;
         }
         // border-right: .0625rem solid @theme_line;
       }
       &:last-child {
         span, button {
-          border-top-right-radius: 4px;
-          border-bottom-right-radius: 4px;
+          border-top-right-radius: @radius-border;
+          border-bottom-right-radius: @radius-border;
         }
         // border-right: .0625rem solid @theme_line;
       }

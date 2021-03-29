@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu } = require('electron')
+const { app, BrowserWindow, shell } = require('electron')
 const path = require('path')
 
 // 单例应用程序
@@ -6,52 +6,109 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
   return
 }
+if (!global.modules) global.modules = {}
 app.on('second-instance', (event, argv, cwd) => {
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
+  if (global.modules.mainWindow) {
+    if (global.modules.mainWindow.isMinimized()) {
+      global.modules.mainWindow.restore()
+    }
+    if (global.modules.mainWindow.isVisible()) {
+      global.modules.mainWindow.focus()
+    } else {
+      global.modules.mainWindow.show()
+    }
   } else {
     app.quit()
   }
 })
 
+const isDev = global.isDev = process.env.NODE_ENV !== 'production'
+require('./env')
+// console.log(global.envParams.cmdParams)
+
+// Is disable hardware acceleration
+if (global.envParams.cmdParams.dha) app.disableHardwareAcceleration()
+if (global.envParams.cmdParams.dt == null && global.envParams.cmdParams.nt != null) global.envParams.cmdParams.dt = global.envParams.cmdParams.nt
+// https://github.com/electron/electron/issues/22691
+app.commandLine.appendSwitch('wm-window-animations-disabled')
+
+
+const { navigationUrlWhiteList } = require('../common/config')
+const { getWindowSizeInfo } = require('./utils')
+const { isMac, isLinux, initSetting, initHotKey } = require('../common/utils')
+
+
+// https://github.com/electron/electron/issues/18397
+// 开发模式下为true时 多次引入native模块会导致渲染进程卡死
+// https://github.com/electron/electron/issues/22791
+app.allowRendererProcessReuse = !isDev
+
+
+app.on('web-contents-created', (event, contents) => {
+  contents.on('will-navigate', (event, navigationUrl) => {
+    if (isDev) return console.log('navigation to url:', navigationUrl)
+    if (!navigationUrlWhiteList.some(url => url.test(navigationUrl))) return event.preventDefault()
+    console.log('navigation to url:', navigationUrl)
+  })
+  contents.on('new-window', async(event, navigationUrl) => {
+    event.preventDefault()
+    if (/^devtools/.test(navigationUrl)) return
+    console.log(navigationUrl)
+    if (!/^https?:\/\//.test(navigationUrl)) return
+    await shell.openExternal(navigationUrl)
+  })
+  contents.on('will-attach-webview', (event, webPreferences, params) => {
+    // Strip away preload scripts if unused or verify their location is legitimate
+    delete webPreferences.preload
+    delete webPreferences.preloadURL
+
+    // Disable Node.js integration
+    webPreferences.nodeIntegration = false
+
+    // Verify URL being loaded
+    if (!navigationUrlWhiteList.some(url => url.test(params.src))) {
+      event.preventDefault()
+    }
+  })
+})
+
+
+require('../common/error')
 require('./events')
+require('./event')
+require('./rendererEvents')
+const winEvent = require('./rendererEvents/winEvent')
 const autoUpdate = require('./utils/autoUpdate')
-const { isLinux, isMac } = require('../common/utils')
 
-const isDev = process.env.NODE_ENV !== 'production'
 
-/**
- * Set `__static` path to static files in production
- * https://simulatedgreg.gitbooks.io/electron-vue/content/en/using-static-assets.html
- */
-
-let mainWindow
 let winURL
-let isFirstCheckedUpdate = true
 
 if (isDev) {
-  global.__static = path.join(__dirname, '../static')
+  // eslint-disable-next-line no-undef
+  global.__static = __static
   winURL = 'http://localhost:9080'
 } else {
   global.__static = path.join(__dirname, '/static')
-  winURL = `file://${__dirname}/index.html`
+  winURL = `file://${path.join(__dirname, 'index.html')}`
 }
 
 function createWindow() {
+  const windowSizeInfo = getWindowSizeInfo(global.appSetting)
   /**
    * Initial window options
    */
-  mainWindow = global.mainWindow = new BrowserWindow({
-    height: 590,
+  global.modules.mainWindow = new BrowserWindow({
+    height: windowSizeInfo.height,
     useContentSize: true,
-    width: 920,
+    width: windowSizeInfo.width,
     frame: false,
-    transparent: !isLinux,
+    transparent: !global.envParams.cmdParams.dt,
+    enableRemoteModule: false,
     // icon: path.join(global.__static, isWin ? 'icons/256x256.ico' : 'icons/512x512.png'),
     resizable: false,
     maximizable: false,
     fullscreenable: false,
+    show: false,
     webPreferences: {
       // contextIsolation: true,
       webSecurity: !isDev,
@@ -59,72 +116,54 @@ function createWindow() {
     },
   })
 
-  mainWindow.loadURL(winURL)
+  global.modules.mainWindow.loadURL(winURL)
 
-  mainWindow.on('close', () => {
-    mainWindow.setProgressBar(-1)
-  })
-  mainWindow.on('closed', () => {
-    mainWindow = global.mainWindow = null
-  })
+  winEvent(global.modules.mainWindow)
+  // global.modules.mainWindow.webContents.openDevTools()
 
-  // mainWindow.webContents.openDevTools()
-
-  if (!isDev) {
-    autoUpdate(isFirstCheckedUpdate)
-    isFirstCheckedUpdate = false
-  }
+  if (!isDev) autoUpdate()
 }
 
-if (isMac) {
-  const template = [
-    {
-      label: app.getName(),
-      submenu: [
-        { label: '关于洛雪音乐', role: 'about' },
-        { type: 'separator' },
-        { label: '隐藏', role: 'hide' },
-        { label: '显示其他', role: 'hideothers' },
-        { label: '显示全部', role: 'unhide' },
-        { type: 'separator' },
-        { label: '退出', accelerator: 'Command+Q', click: () => app.quit() },
-      ],
-    },
-    {
-      label: '窗口',
-      role: 'window',
-      submenu: [
-        { label: '最小化', role: 'minimize' },
-        { label: '关闭', role: 'close' },
-      ],
-    },
-    {
-      label: '编辑',
-      submenu: [
-        { label: '撤销', accelerator: 'CmdOrCtrl+Z', role: 'undo' },
-        { label: '恢复', accelerator: 'Shift+CmdOrCtrl+Z', role: 'redo' },
-        { type: 'separator' },
-        { label: '剪切', accelerator: 'CmdOrCtrl+X', role: 'cut' },
-        { label: '复制', accelerator: 'CmdOrCtrl+C', role: 'copy' },
-        { label: '粘贴', accelerator: 'CmdOrCtrl+V', role: 'paste' },
-        { label: '选择全部', accelerator: 'CmdOrCtrl+A', role: 'selectAll' },
-      ],
-    },
-  ]
-
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
-} else {
-  Menu.setApplicationMenu(null)
+global.appHotKey = {
+  enable: true,
+  config: {},
+  state: null,
 }
 
-app.on('ready', createWindow)
+function init() {
+  console.log('init')
+  const info = initSetting()
+  global.appSetting = info.setting
+  global.appSettingVersion = info.version
+  global.appHotKey.config = initHotKey()
+  global.lx_event.common.initSetting()
+  global.lx_event.hotKey.init()
+  createWindow()
+}
 
-app.on('window-all-closed', () => {
-  if (!isMac) app.quit()
-})
+// https://github.com/electron/electron/issues/16809
+app.on('ready', isLinux ? () => setTimeout(init, 300) : init)
 
 app.on('activate', () => {
-  if (mainWindow === null) {
-    createWindow()
+  if (global.modules.mainWindow) {
+    if (global.modules.mainWindow.isMinimized()) {
+      global.modules.mainWindow.restore()
+    } else if (global.modules.mainWindow.isVisible()) {
+      global.modules.mainWindow.focus()
+    } else {
+      global.modules.mainWindow.show()
+    }
+  } else if (global.modules.mainWindow === null) {
+    init()
   }
 })
+
+app.on('window-all-closed', () => {
+  if (isMac) {
+    global.lx_event.tray.destroy()
+  } else {
+    app.quit()
+  }
+})
+
+require('./modules')
